@@ -1,0 +1,18 @@
+project:
+  type: website
+
+website:
+  title: "Extreme Climate Blog"
+  navbar:
+    right:
+      - about.qmd
+      - icon: github
+        href: https://github.com/clai-group/Confluence_web/tree/main
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+
+editor: visual
+
