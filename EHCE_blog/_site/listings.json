@@ -2,8 +2,9 @@
   {
     "listing": "/index.html",
     "items": [
-      "/posts/welcome/index.html",
-      "/posts/post-with-code/index.html"
+      "/posts/Frequency/index.html",
+      "/posts/Intensity/index.html",
+      "/posts/Area/index.html"
     ]
   }
 ]

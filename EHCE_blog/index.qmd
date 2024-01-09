@@ -1,5 +1,5 @@
 ---
-title: "Extreme Climate"
+title: "Confluence Projects"
 listing:
   contents: posts
   sort:
@@ -8,8 +8,26 @@ listing:
   type: default
   categories: true
   feed: true
-  sort-ui: false
-  filter-ui: false
+  sort-ui: [title, date]
+  filter-ui: [title, date]
 page-layout: full
 title-block-banner: true
 ---
+
+**Confluence [noun](https://www.merriam-webster.com/dictionary/noun)**
+
+:the flowing together of two or more streams
+
+\"Confluence.\" Merriam-Webster.com Dictionary, Merriam-Webster, https://www.merriam-webster.com/dictionary/confluence. Accessed 19 Apr. 2022.
+
+![](https://upload.wikimedia.org/wikipedia/commons/d/d7/%27Ksan_at_Skeena-Bulkley_confluence.jpg)
+
+**Description:** Aerial view of 'Ksan at Skeena-Bulkley confluence **Source:** [Ksan at Skeena/Bulkley confluence](https://www.flickr.com/photos/sbeebe/6851904290/)
+
+Climate change is a grand challenge for life on Earth and will likely have devastating impacts on future generations. Regardless of whether our mitigation efforts are successful or not, varying degrees of climate impact are inevitable on different human populations. This is highly important due to a changing population that constantly shifts who is vulnerable and to what degree. 
+
+In the confluence project, we aim to focus on the transforming/unfolding impacts of climate change on vulnerable populations that can change in proportion and scale/magnitude due to other influential factors such as aging and diseases. 
+
+**We study the confluence of environmental and demographic changes on the health outcomes for individuals and groups of people so that the outcomes can be translated into meaningful and actionable insight for ameliorating climate impacts on vulnerable populations.**
+
+# Posts 
