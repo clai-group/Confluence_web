@@ -68,9 +68,11 @@ dat_table$abs_intensity = abs(dat_table$avg_intensity)
 
 county_yearly_intensity <- dat_table %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
-  summarize(mean_intensity = mean(abs_intensity))
+  summarize(mean_intensity = mean(abs_intensity),
+            avg_impacted_area_hectare = mean(impacted_area_hectare))
 dat_intensity_all <- merge(year_geoid_combinations, county_yearly_intensity, by = c("year_numerical", "GEOID"), all = TRUE)
 dat_intensity_all["mean_intensity"] <- lapply(dat_intensity_all["mean_intensity"], function(x) ifelse(is.na(x), 0, x))
+dat_intensity_all["avg_impacted_area_hectare"] <- lapply(dat_intensity_all["avg_impacted_area_hectare"], function(x) ifelse(is.na(x), 0, x))
 dat_intensity_all <- fill_na_with_lookup(dat_intensity_all, 
                                                lookup_table, "NAME")
 dat_intensity_all <- fill_na_with_lookup(dat_intensity_all, 
@@ -79,7 +81,7 @@ dat_intensity_all <- fill_na_with_lookup(dat_intensity_all,
 #linear regression and calcualte percentage change with standardized average intensity 
 lm_intensity_all <- dat_intensity_all %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
-  do(model = lm(mean_intensity ~ year_numerical, data = .))
+  do(model = lm(mean_intensity ~ year_numerical + avg_impacted_area_hectare, data = .))
 
 slopes_all <- lm_intensity_all %>%
   rowwise() %>%
@@ -112,7 +114,7 @@ ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = slope), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", limits = c(-2.6, 2.6)
+  scale_fill_distiller(palette = "RdBu", limits = c(-2.2, 2.2)
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
   labs(fill = "Intensity") +
@@ -126,10 +128,12 @@ ggplot() +
 county_heat_intensity <- dat_table %>%
   filter(event_type == "Extreme Heat Event") %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
-  summarize(mean_intensity = mean(abs_intensity))
+  summarize(mean_intensity = mean(abs_intensity),
+            avg_impacted_area_hectare = mean(impacted_area_hectare))
 
 dat_intensity_ehe <- merge(year_geoid_combinations, county_heat_intensity, by = c("year_numerical", "GEOID"), all = TRUE)
 dat_intensity_ehe["mean_intensity"] <- lapply(dat_intensity_ehe["mean_intensity"], function(x) ifelse(is.na(x), 0, x))
+dat_intensity_ehe["avg_impacted_area_hectare"] <- lapply(dat_intensity_ehe["avg_impacted_area_hectare"], function(x) ifelse(is.na(x), 0, x))
 
 dat_intensity_ehe <- fill_na_with_lookup(dat_intensity_ehe, lookup_table, "NAME")
 dat_intensity_ehe <- fill_na_with_lookup(dat_intensity_ehe, lookup_table, "STATE_NAME")
@@ -183,10 +187,12 @@ ggplot() +
 county_cold_intensity <- dat_table %>%
   filter(event_type == "Extreme Cold Event") %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
-  summarize(mean_intensity = mean(abs_intensity))
+  summarize(mean_intensity = mean(abs_intensity),
+            avg_impacted_area_hectare = mean(impacted_area_hectare))
 
 dat_intensity_ece <- merge(year_geoid_combinations, county_cold_intensity, by = c("year_numerical", "GEOID"), all = TRUE)
 dat_intensity_ece["mean_intensity"] <- lapply(dat_intensity_ece["mean_intensity"], function(x) ifelse(is.na(x), 0, x))
+dat_intensity_ece["avg_impacted_area_hectare"] <- lapply(dat_intensity_ece["avg_impacted_area_hectare"], function(x) ifelse(is.na(x), 0, x))
 
 dat_intensity_ece <- fill_na_with_lookup(dat_intensity_ece, lookup_table, "NAME")
 dat_intensity_ece <- fill_na_with_lookup(dat_intensity_ece, lookup_table, "STATE_NAME")
@@ -226,7 +232,7 @@ ggplot() +
   geom_sf(data = county_boundaris_ece_catalog,
             aes(fill = slope), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", limit = c(-4, 4)) +
+  scale_fill_distiller(palette = "RdBu", limit = c(-3.75, 3.75)) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.5) +
   labs(fill = "Intensity ECE") +
   theme_void() + 

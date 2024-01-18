@@ -67,7 +67,7 @@ unique_geoids <- unique(dat$GEOID)
 year_geoid_combinations <- expand.grid(year_numerical = year_range$year_numerical, GEOID = unique_geoids)
 
 season_table <- dat_ehe_season %>%
-  group_by(GEOID, NAME, year_numerical) %>%
+  group_by(GEOID, NAME, STATE_NAME, year_numerical) %>%
   summarise(
     mean_intensity = mean(avg_intensity),
     first_event = min(day_numerical),
@@ -208,4 +208,19 @@ ggplot() +
   theme_void() + 
   theme(legend.position = "bottom")
 
+#ggplot(result, aes(x = year_numerical, y = total_days, group = GEOID, color = GEOID)) +
+#  geom_line() +
+#  geom_point() +
+#  theme_minimal() +
+#  labs(title = "Total Days Trend by County",
+#       x = "Year",
+#       y = "Total Days",
+#       color = "County (GEOID)")
+```
+
+### 
+
+```{r, include=FALSE}
+#season_table %>% select(year_numerical, STATE_NAME, duration) %>%
+#  summarise(county_mean_intensity = mean(mean_intensity))
 ```
