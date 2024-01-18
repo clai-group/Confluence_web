@@ -222,12 +222,12 @@ slopes_all_area_adj = slopes_all_area_adj %>%
 #### Model Selection
 
 ```{r, warning=FALSE}
-nb_all_area_freq = event_count_all %>%
+NB_regression = event_count_all %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
   do(model = MASS::glm.nb(event_count ~ year_numerical + 
                             offset(log(avg_total_area_sq_mile)), data = .))
 
-slopes_nb <- nb_all_area_freq %>%
+slopes_nb <- NB_regression %>%
   rowwise() %>%
   mutate(
     slope = coef(model)[["year_numerical"]],
@@ -261,10 +261,10 @@ model_comparison_table1 <- event_count_all %>%
 ```
 
 ```{r}
-hist(slopes_all_area_freq$p_value)
-hist(slopes_all_area_freq$percentage_change)
-hist(slopes_all_area_freq$aic)
-hist(slopes_all_area_freq$pseudo_r_squared)
+#hist(slopes_all_area_freq$p_value)
+#hist(slopes_all_area_freq$percentage_change)
+#hist(slopes_all_area_freq$aic)
+#hist(slopes_all_area_freq$pseudo_r_squared)
 ```
 
 #### Map
@@ -487,16 +487,16 @@ slopes_ece_poi_area_adj <- event_count_ece %>%
       model = MASS::glm.nb(event_count ~ year_numerical + 
                             offset(log(avg_total_area_sq_mile)), data = .)
       coef_model = coef(model)["year_numerical"]
-      percent_change = (exp(coef_model) - 1) * 100
+      percentage_change = (exp(coef_model) - 1) * 100
       p_values = summary(model)$coefficients["year_numerical", "Pr(>|z|)"]
       aic_value = AIC(model)
       bic_value = BIC(model)
 
-      data.frame(coef = coef_model, percent_change, p_value = p_values, 
+      data.frame(coef = coef_model, percentage_change, p_value = p_values, 
                  AIC = aic_value, BIC = bic_value)
     }, error = function(e) {
       # Return NA in case of an error
-      data.frame(coef = NA, percent_change = NA, p_value = NA, 
+      data.frame(coef = NA, percentage_change = NA, p_value = NA, 
                  AIC = NA, BIC = NA)
     })
   })
@@ -595,7 +595,7 @@ ggplot() +
 
 ```{r}
 state_ehe_dat = event_count_ehe %>% 
-  select(year_numerical, STATE_NAME, event_count) 
+  dplyr::select(year_numerical, STATE_NAME, event_count) 
 
 poi_state_ehe <- state_ehe_dat %>%
   group_by(STATE_NAME) %>%
@@ -614,7 +614,7 @@ slopes_state_ehe <- poi_state_ehe %>%
     aic = AIC(model)
   ) %>%
   ungroup() %>%
-  select(STATE_NAME, slope, percentage_change,p_value,
+  dplyr::select(STATE_NAME, slope, percentage_change,p_value,
          residual_deviance, df_residual, 
          deviance_ratio, dispersion, aic)
 
