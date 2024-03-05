@@ -18,6 +18,7 @@ library(pscl)
 library(reshape2)
 library(data.table)
 library(broom)
+options(scipen=999)
 ```
 
 ### Loading the base spatail data set including Counties and States boundaires
@@ -41,18 +42,18 @@ file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
 
-### Create seasonal summary by county 
+### Create seasonal summary by county
 
 ```{r}
-options(scipen=999)
 dat_table = dat %>%  st_drop_geometry()
 dat_ehe_season = dat_table %>% filter(event_type == 'Extreme Heat Event') %>%
-  select(GEOID, NAME, STUSPS, STATE_NAME, event_date, event_type, avg_intensity, year_numerical, 
+  dplyr::select(GEOID, NAME, STUSPS, STATE_NAME, 
+         event_date, event_type, avg_intensity, year_numerical, 
          month_numerical, day_numerical)
 dat_ehe_season$event_date = as.Date(dat_ehe_season$event_date)
 ## Adding years with no event to the dataset 
 lookup_table <- dat_table %>%
-  select(GEOID, NAME, STUSPS, STATE_NAME) %>%
+  dplyr::select(GEOID, NAME, STUSPS, STATE_NAME) %>%
   distinct() %>%
   filter(!is.na(NAME) & !is.na(STUSPS) & !is.na(STATE_NAME))
 
@@ -119,7 +120,7 @@ ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = estimate), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", 
+  scale_fill_distiller(palette = "PuOr", 
                        limits = c(-9, 9)
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
@@ -159,7 +160,7 @@ ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = estimate), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", 
+  scale_fill_distiller(palette = "PuOr", 
                        limits = c(-17.2, 17.2)
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
@@ -200,7 +201,7 @@ ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = estimate), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", 
+  scale_fill_distiller(palette = "PuOr", 
                        limits = c(-25, 25)
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
@@ -223,4 +224,81 @@ ggplot() +
 ```{r, include=FALSE}
 #season_table %>% select(year_numerical, STATE_NAME, duration) %>%
 #  summarise(county_mean_intensity = mean(mean_intensity))
+```
+
+### Aggregation map
+
+```{r}
+duration_analysis$estimate[abs(duration_analysis$estimate) < 1] <- 0
+first_event_analysis$estimate[abs(first_event_analysis$estimate) < 1] <- 0
+last_event_analysis$estimate[abs(last_event_analysis$estimate) < 1] <- 0
+
+season_map_dat = data.frame(GEOID = duration_analysis$GEOID, 
+                            NAME = duration_analysis$NAME,
+                            duration_estimate = duration_analysis$estimate,
+                            first_event_estimate = first_event_analysis$estimate,
+                            last_event_estimate = last_event_analysis$estimate)
+
+get_sign <- function(x) {
+  if (x > 0) {
+    return("positive")
+  } else if (x < 0) {
+    return("negative")
+  } else {
+    return("0")
+  }
+}
+
+season_map_dat$labels <- paste(sapply(season_map_dat$duration_estimate, 
+                                        get_sign), 
+                                 sapply(season_map_dat$first_event_estimate, 
+                                        get_sign), 
+                                 sapply(season_map_dat$last_event_estimate, 
+                                        get_sign), 
+                                 sep="-")
+
+season_map_dat = season_map_dat %>% 
+  mutate(label_group = case_when(
+    labels == "negative-0-0" ~ "0-0-0",
+    labels == "positive-0-0" ~ "0-0-0",
+    labels == "0-0-negative" ~ "0-0-0",
+    labels == "0-0-positive" ~ "0-0-0",
+    labels == "0-negative-0" ~ "0-0-0",
+    labels == "0-positive-0" ~ "0-0-0",
+    labels == "positive-positive-positive" ~ "positive-0-positive",
+    labels == "negative-negative-negative" ~ "negative-0-negative",
+    labels == "positive-negative-negative" ~ "positive-negative-0",
+    labels == "negative-positive-positive" ~ "negative-positive-0",
+    TRUE ~ labels
+  ))
+
+county_boundaris_catalog_all <- merge(counties_geo,
+          season_map_dat %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+
+palette <- rev(brewer.pal(9, "Paired"))
+palette <- c(
+  "0-0-0" = "lightblue",
+  "0-negative-negative" = "deepskyblue3",
+  "0-positive-positive" = "royalblue",
+  "negative-positive-0" = "darkseagreen3",
+  "negative-0-negative" = "olivedrab",
+  "negative-positive-negative" = "chartreuse3",
+  "positive-negative-0" = "lightpink2",
+  "positive-negative-positive" = "brown3",
+  "positive-0-positive" = "palevioletred2"
+)
+ggplot() +
+  geom_sf(data = county_boundaris_catalog_all,
+            aes(fill = label_group), color = NA,
+            lwd = .1) + 
+  scale_fill_manual(values = palette, na.translate = F) +
+  geom_sf(data = states_geo, fill = NA, color = "black", size = 0.1) +
+  labs(fill = "Season Analysis in Days(Duration-First events-Last events)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
 ```

@@ -50,7 +50,7 @@ dat <- readRDS(dat_path)[[1]]
 dat_table = dat %>%  st_drop_geometry()
 ## Adding years with no event to the dataset 
 lookup_table <- dat_table %>%
-  select(GEOID, NAME, STUSPS, STATE_NAME) %>%
+  dplyr::select(GEOID, NAME, STUSPS, STATE_NAME) %>%
   distinct() %>%
   filter(!is.na(NAME) & !is.na(STUSPS) & !is.na(STATE_NAME))
 
@@ -112,12 +112,12 @@ ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = slope), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", 
+  scale_fill_distiller(palette = "PuOr", 
                        limits = c(-0.065, 0.065),
                        breaks = c(-0.05, 0, 0.05),
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
-  labs(fill = "Area") +
+  labs(fill = "EHCE Impacted Area Ratio Coefficient") +
   theme_void() + 
   theme(legend.position = "bottom")
 ```
@@ -172,11 +172,11 @@ ggplot() +
   geom_sf(data = county_boundaris_ehe_catalog,
             aes(fill = slope),color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", 
+  scale_fill_distiller(palette = "PuOr", 
                        limits = c(-0.085, 0.085)
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.5) +
-  labs(fill = "Area EHE") +
+  labs(fill = "EHE Impacted Area Ratio Coefficient") +
   theme_void() + 
   theme(legend.position = "bottom")
 ```
@@ -232,11 +232,11 @@ ggplot() +
   geom_sf(data = county_boundaris_ece_catalog,
             aes(fill = slope), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", 
+  scale_fill_distiller(palette = "PuOr", 
                        limits = c(-0.071, 0.071)
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.5) +
-  labs(fill = "Area ECE") +
+  labs(fill = "ECE Impacted Area Ratio Coefficient") +
   theme_void() + 
   theme(legend.position = "bottom")
 ```
