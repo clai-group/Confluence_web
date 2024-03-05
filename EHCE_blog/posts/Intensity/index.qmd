@@ -81,7 +81,7 @@ dat_intensity_all <- fill_na_with_lookup(dat_intensity_all,
 #linear regression and calcualte percentage change with standardized average intensity 
 lm_intensity_all <- dat_intensity_all %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
-  do(model = lm(mean_intensity ~ year_numerical + avg_impacted_area_hectare, data = .))
+  do(model = lm(mean_intensity ~ year_numerical, data = .))
 
 slopes_all <- lm_intensity_all %>%
   rowwise() %>%
