@@ -136,7 +136,7 @@ frequency_by_season_heat <- fill_na_with_lookup(frequency_by_season_heat, lookup
 
 frequency_by_season = rbind(frequency_by_season_heat, frequency_by_season_cold)
 
-write.csv(frequency_by_season, "~/Desktop/frequency_season.csv")
+#write.csv(frequency_by_season, "~/Desktop/frequency_season.csv")
 ```
 
 #### Average counts by county
@@ -209,12 +209,14 @@ p_count_all_map = ggplot() +
   theme_void() + 
   theme(legend.position = "bottom")
 
-p_count_all_map
-png("~/Desktop/ehe_ece_data_integration/Frequency_maps/count_all_per_area.png",
-    height = 5, width = 7, res = 300, units = "in")
-print(p_count_all_map)
-dev.off()
+#p_count_all_map
+#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/count_all_per_area.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_count_all_map)
+#dev.off()
 ```
+
+### Regression Analaysis and Model Selection
 
 #### NB regression
 
@@ -303,7 +305,7 @@ slopes_all_cut = slopes_all_cut %>%
 
 ```
 
-#### ZINB + NB model
+#### ZINB + NB model (model selection)
 
 ```{r}
 zeroinfl_all = event_count_all %>% group_by(GEOID, NAME, STATE_NAME) %>%
@@ -366,8 +368,6 @@ p_combine_all = ggplot() +
   labs(fill = "Percentage Change in EHCE Frequency (two models)") +
   theme_void() + 
   theme(legend.position = "bottom")
-
-p_combine_all
 ```
 
 #### Model Selection
@@ -452,12 +452,6 @@ p_perc_change_all = ggplot() +
   labs(fill = "Percentage Change in Frequency (Area adjusted)") +
   theme_void() + 
   theme(legend.position = "bottom")
-
-p_perc_change_all
-png("~/Desktop/ehe_ece_data_integration/Frequency_maps/perc_change_all.png",
-    height = 5, width = 7, res = 300, units = "in")
-print(p_perc_change_all)
-dev.off()
 ```
 
 #### Interactive map
@@ -509,48 +503,6 @@ overall_interactive_plot <- leaflet(county_boundaries_catalog_all_trans) %>%
 )
 
 overall_interactive_plot
-```
-
-#### Prediction
-
-```{r}
-# Prediction
-nb_reg_model = merge(nb_all_area_freq, avg_total_area)
-predictions_2025 <- nb_reg_model %>%
-  rowwise() %>%
-  mutate(predicted_2025 = predict(model, newdata = data.frame(
-    year_numerical = 2025,
-    avg_total_area_sq_mile = avg_total_area_sq_mile  
-  ), type = "response")) %>%
-  ungroup() %>%
-  dplyr::select(GEOID, NAME, STATE_NAME, predicted_2025)
-
-# With CI
-predictions_2025_with_ci <-nb_reg_model %>%
-  rowwise() %>%
-  mutate(
-    ci_results = list(tryCatch({
-      pred_response = predict(model, newdata = data.frame(
-        year_numerical = 2025,
-        avg_total_area_sq_mile = avg_total_area_sq_mile  
-      ), type = "response", se.fit = TRUE)
-      
-      ci_lower = exp(pred_response$fit - qnorm(0.975) * pred_response$se.fit)
-      ci_upper = exp(pred_response$fit + qnorm(0.975) * pred_response$se.fit)
-
-      list(predicted_2025 = pred_response$fit, ci_lower = ci_lower, ci_upper = ci_upper)
-    }, error = function(e) {
-      # Return NA if error
-      list(predicted_2025 = NA, ci_lower = NA, ci_upper = NA)
-    }))
-  ) %>%
-  ungroup() %>%
-  mutate(
-    predicted_2025 = map_dbl(ci_results, "predicted_2025"),
-    ci_lower = map_dbl(ci_results, "ci_lower"),
-    ci_upper = map_dbl(ci_results, "ci_upper")
-  ) %>%
-  dplyr::select(GEOID, NAME, STATE_NAME, predicted_2025, ci_lower, ci_upper)
 ```
 
 ### Extreme Heat Events
@@ -653,7 +605,7 @@ hist(slopes_ehe_poi_area_adj$percentage_change)
 hist(slopes_ehe_poi_area_adj$aic)
 ```
 
-#### ZINB + NB model
+#### ZINB + NB model (Model Selection)
 
 ```{r}
 zeroinfl_ehe = event_count_ehe %>% group_by(GEOID, NAME, STATE_NAME) %>%
@@ -760,11 +712,11 @@ p_ehe_count_map = ggplot() +
   theme_void() + 
   theme(legend.position = "bottom")
 
-p_ehe_count_map
-png("~/Desktop/count_ehe_per_area.png",
-    height = 5, width = 7, res = 300, units = "in")
-print(p_ehe_count_map)
-dev.off()
+#p_ehe_count_map
+#png("~/Desktop/count_ehe_per_area.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_ehe_count_map)
+#dev.off()
 ```
 
 #### Map
@@ -802,11 +754,11 @@ p_perc_change_ehe = ggplot() +
   theme_void() + 
   theme(legend.position = "bottom")
 
-p_perc_change_ehe
-png("~/Desktop/ehe_ece_data_integration/Frequency_maps/perc_change_ehe.png",
-    height = 5, width = 7, res = 300, units = "in")
-print(p_perc_change_ehe)
-dev.off()
+#p_perc_change_ehe
+#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/perc_change_ehe.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_perc_change_ehe)
+#dev.off()
 ```
 
 #### Interactive map
@@ -1048,11 +1000,11 @@ p_ece_count_map = ggplot() +
   theme_void() + 
   theme(legend.position = "bottom")
 
-p_ece_count_map
-png("~/Desktop/count_ece_per_area.png",
-    height = 5, width = 7, res = 300, units = "in")
-print(p_ece_count_map)
-dev.off()
+#p_ece_count_map
+#png("~/Desktop/count_ece_per_area.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_ece_count_map)
+#dev.off()
 ```
 
 #### Map
