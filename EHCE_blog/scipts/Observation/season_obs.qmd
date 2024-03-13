@@ -1,0 +1,130 @@
+---
+title: "EHE Season Trend Analysis"
+author: "Jingya Cheng"
+date: "2024-01-09"
+categories: [code, analysis, trend]
+---
+
+# Season Analysis for Extreme Heat Events
+
+```{r, include=FALSE}
+library(readr)
+library(viridis)
+library(tidyverse)
+library(sf)
+library(gridExtra)
+library(RColorBrewer)
+library(pscl)
+library(reshape2)
+library(data.table)
+library(broom)
+options(scipen=999)
+```
+
+### Loading the base spatail data set including Counties and States boundaires
+
+```{r}
+source_dir <- "./data/"
+states_file_path <- file.path(source_dir,
+                              "us49_states_geo_tigris.rds")
+states_geo <- readRDS(states_file_path)[[1]]
+counties_file_path <- file.path(source_dir,
+                                "us49_counties_geo_tigris.rds")
+counties_geo <- readRDS(counties_file_path)[[1]]
+```
+
+### Loading the aggregate extreme events data set
+
+```{r}
+dat_path <- file.path(source_dir,
+                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+file_size <- file.info(dat_path)$size
+dat <- readRDS(dat_path)[[1]]
+```
+
+### Create seasonal summary by county
+
+```{r}
+dat_table = dat %>%  st_drop_geometry()
+dat_ehe_season = dat_table %>% filter(event_type == 'Extreme Heat Event') %>%
+  dplyr::select(GEOID, NAME, STUSPS, STATE_NAME, 
+         event_date, event_type, avg_intensity, year_numerical, 
+         month_numerical, day_numerical) 
+dat_ehe_season$event_date = as.Date(dat_ehe_season$event_date)
+
+season_table <- dat_ehe_season %>%
+  group_by(GEOID, NAME, STATE_NAME, year_numerical) %>%
+  summarise(
+    mean_intensity = mean(avg_intensity),
+    first_event = min(day_numerical),
+    last_event = max(day_numerical),
+    duration = as.numeric(difftime(max(event_date), min(event_date), units = "days")) + 1
+  )
+
+season_table_all_years = season_table %>% 
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  summarise(
+    avg_first_event_day = mean(first_event),
+    avg_last_event_day = mean(last_event),
+    avg_duration = mean(duration)
+  )
+```
+
+#### Map
+
+```{r}
+# Merge with geometry data
+county_boundaris_catalog_all <- merge(counties_geo,
+          season_table_all_years %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+# area all map
+ggplot() +
+  geom_sf(data = county_boundaris_catalog_all,
+            aes(fill = avg_duration), color = NA,
+            lwd = .1) + 
+  scale_fill_viridis_c(option = "D", direction = -1) +
+  geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
+  labs(fill = "EHE Average Duration (2008-2022)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+```
+
+### First Event Analysis
+
+#### Map
+
+```{r}
+# area all map
+ggplot() +
+  geom_sf(data = county_boundaris_catalog_all,
+            aes(fill = avg_first_event_day), color = NA,
+            lwd = .1) + 
+  scale_fill_viridis_c(option = "B", direction = -1) +
+  geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
+  labs(fill = "EHE Average First Event Day (2008-2022)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+```
+
+### Last Event Date Analysis
+
+#### Map
+
+```{r}
+# area all map
+ggplot() +
+  geom_sf(data = county_boundaris_catalog_all,
+            aes(fill = avg_last_event_day), color = NA,
+            lwd = .1) + 
+  scale_fill_viridis_c(option = "G", direction = -1) +
+  geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
+  labs(fill = "EHE Average Last Event Day (2008-2022)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+```
+
+

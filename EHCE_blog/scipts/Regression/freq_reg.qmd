@@ -1,0 +1,508 @@
+---
+title: "EHCE Frequency Trend Analysis -- regression"
+author: "Jingya Cheng"
+date: "2024-01-03"
+categories: [code, analysis, trend]
+---
+
+# Extreme Heat/Cold Events Frequency Trend Analysis
+
+```{r, include=FALSE}
+library(readr)
+library(viridis)
+library(tidyverse)
+library(sf)
+library(gridExtra)
+library(RColorBrewer)
+library(pscl)
+library(reshape2)
+library(data.table)
+library(broom)
+library(DescTools)
+library(MASS)
+library(ggridges)
+library(purrr)
+library(leaflet)
+library(tidyr)
+```
+
+### Loading the base spatail data set including Counties and States boundaires
+
+```{r}
+source_dir <- "./data/"
+states_file_path <- file.path(source_dir,
+                              "us49_states_geo_tigris.rds")
+states_geo <- readRDS(states_file_path)[[1]]
+counties_file_path <- file.path(source_dir,
+                                "us49_counties_geo_tigris.rds")
+counties_geo <- readRDS(counties_file_path)[[1]]
+#plot(counties_geo[1])
+```
+
+### Loading the aggregate extreme events data set
+
+```{r}
+dat_path <- file.path(source_dir,
+                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+file_size <- file.info(dat_path)$size
+dat <- readRDS(dat_path)[[1]]
+```
+
+### Overall frequency analysis
+
+#### Complete yearly aggregated counts
+
+Complete the yearly frequency counts by assign 0 to that year when there's no extreme event records.
+
+```{r}
+dat_table = dat %>%  st_drop_geometry()
+dat_table$total_area_sq_mile = dat_table$total_area/2590000
+avg_total_area = dat_table %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  summarize(avg_total_area_sq_mile = mean(total_area_sq_mile))
+
+event_count_all = dat_table %>%
+  group_by(GEOID, NAME, STATE_NAME, year_numerical) %>%
+  summarize(event_count = n_distinct(event_date))
+
+event_count_all = event_count_all %>% complete(
+  year_numerical = 2008:2022,
+  fill =  list(event_count = 0)
+  )
+
+event_count_all = merge(event_count_all, avg_total_area, 
+                         by = c("GEOID", "NAME", "STATE_NAME"), all = TRUE)
+
+event_count_all = event_count_all %>% 
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  mutate(mean_event_count = mean(event_count),
+         sd = sd(event_count),
+         outlier_upper = mean_event_count + 3*sd,
+         outlier_lower = mean_event_count - 3*sd ) %>%
+  mutate(event_count_outlier_rm = 
+           ifelse((event_count>=outlier_lower&event_count<=outlier_upper), event_count, 0))
+nrow(event_count_all %>% filter(event_count != event_count_outlier_rm))
+
+```
+#### Regression Analaysis 
+
+For each county, a poisson regression model is used to analyze the percentage changes by year.
+
+```{r, message=FALSE, warning=FALSE}
+slopes_all <- event_count_all %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  do({
+    # Fit the Negative Binomial model
+    tryCatch({
+      model = MASS::glm.nb(event_count ~ year_numerical + 
+                            offset(log(avg_total_area_sq_mile)), data = .)
+      coef_model = coef(model)["year_numerical"]
+      percentage_change = (exp(coef_model) - 1) * 100
+      p_values = summary(model)$coefficients["year_numerical", "Pr(>|z|)"]
+      aic_value = AIC(model)
+      bic_value = BIC(model)
+
+      data.frame(coef = coef_model, percentage_change, p_value = p_values, 
+                 AIC = aic_value, BIC = bic_value)
+    }, error = function(e) {
+      # Return NA in case of an error
+      data.frame(coef = NA, percentage_change = NA, p_value = NA, 
+                 AIC = NA, BIC = NA)
+    })
+  })
+
+slopes_all_cut = slopes_all %>% filter(abs(percentage_change) < 45)
+slopes_all_cut = slopes_all_cut %>%
+  mutate(percentage_change_cat = case_when(
+    percentage_change < -10 ~ "<-10%",
+    percentage_change >=-10 & percentage_change<= -5 ~ "-10 - -5%",
+    percentage_change >-5 & percentage_change<= -1 ~ "-5 - -1%",
+    percentage_change >-1 & percentage_change<= 0 ~ "-1-0%",
+    percentage_change >0 & percentage_change<= 1 ~ "0-1%",
+    percentage_change >1 & percentage_change <= 5 ~ "1-5%",
+    percentage_change >5 & percentage_change <= 10 ~ "5-10%", 
+    TRUE ~ ">10%"
+  )) %>%
+  mutate(percentage_change_cat = factor(percentage_change_cat, 
+                                        levels = c("<-10%","-10 - -5%","-5 - -1%",
+                                                   "-1-0%","0-1%",
+                                                   "1-5%", "5-10%", ">10%")))
+```
+
+
+#### Map
+```{r}
+# Merge with geometry data
+county_boundaries_catalog_all <- merge(counties_geo,
+          slopes_all_cut %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+
+#heat_colors <- c("<1%" = "lightblue", "1-5%" = "yellow", "5-10%" = "orange", ">10%" = "red")
+palette <- rev(brewer.pal(8, "PuOr"))
+p_perc_change_all = ggplot() +
+  geom_sf(data = county_boundaries_catalog_all,
+            aes(fill = percentage_change_cat), color = NA,
+            lwd = .1) + 
+  scale_fill_manual(values = palette, na.translate = F) +
+  geom_sf(data = states_geo, fill = NA, color = "black", size = 0.1) +
+  labs(fill = "Percentage Change in Frequency (Area adjusted)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+p_perc_change_all
+```
+
+
+#### Interactive map
+```{r}
+pal <- colorNumeric(palette = magma(256, direction = -1), 
+                    domain = county_boundaries_catalog_all$percentage_change)
+pal_cat <- colorFactor(palette = rev(brewer.pal(8, "PuOr")), 
+                   domain = county_boundaries_catalog_all$percentage_change_cat,
+                   na.color=rgb(0,0,0,0))
+
+county_boundaries_catalog_all_trans <- st_transform(county_boundaries_catalog_all, crs = 4326)
+state_boundaris_catalog <- st_transform(states_geo, crs = 4326)
+labels <- sprintf(
+  "<strong>%s</strong><br/>%g ",
+  county_boundaries_catalog_all$NAME, 
+  county_boundaries_catalog_all$percentage_change) %>% 
+  lapply(htmltools::HTML)
+overall_interactive_plot <- leaflet(county_boundaries_catalog_all_trans) %>%
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addPolygons(data = state_boundaris_catalog,
+              fillColor = NA,  
+              weight = 2,
+              color = "#000",  
+              fillOpacity = 0) %>% 
+  addPolygons(fillColor = ~pal_cat(percentage_change_cat),
+              weight = 1,
+              opacity = 1,
+              color = "#888",
+              dashArray = "3",
+              fillOpacity = 0.7,
+              highlightOptions = highlightOptions(
+                weight = 3,
+                color = "#555",
+                dashArray = "",
+                fillOpacity = 0.8,
+                bringToFront = TRUE),
+              label = labels,
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto")) %>%
+  addLegend(pal = pal_cat, values = ~percentage_change_cat, opacity = 0.7, title = NULL,
+  position = "bottomright",na.label = "") %>%
+  addControl(
+    html = "<strong>Percentage Change in EHCE Frequency</strong>",
+    position = "bottomleft",
+    className = "map-title"
+)
+
+overall_interactive_plot
+```
+
+### Extreme Heat Events
+
+#### Complete yearly aggregated counts
+
+```{r, message=FALSE, warning=FALSE}
+event_count_ehe = dat_table %>%
+  filter(event_type == "Extreme Heat Event") %>%
+  group_by(GEOID, NAME, STATE_NAME, year_numerical) %>%
+  summarize(event_count = n_distinct(event_date))
+
+event_count_ehe = event_count_ehe %>% complete(
+  year_numerical = 2008:2022,
+  fill =  list(event_count = 0)
+  )
+
+event_count_ehe = merge(event_count_ehe, avg_total_area, 
+                         by = c("GEOID", "NAME", "STATE_NAME"), all = TRUE)
+
+event_count_ehe = event_count_ehe %>% 
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  mutate(mean_event_count = mean(event_count),
+         sd = sd(event_count),
+         outlier_upper = mean_event_count + 3*sd,
+         outlier_lower = mean_event_count - 3*sd ) %>%
+  mutate(event_count_outlier_rm = 
+           ifelse((event_count>=outlier_lower&event_count<=outlier_upper), event_count, 0))
+nrow(event_count_ehe %>% filter(event_count != event_count_outlier_rm))
+```
+
+#### Regression Analaysis
+```{r, message=FALSE, warning=FALSE}
+slopes_ehe_poi_area_adj <- event_count_ehe %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  do({
+    # Fit the Negative Binomial model
+    tryCatch({
+      model = MASS::glm.nb(event_count ~ year_numerical + 
+                            offset(log(avg_total_area_sq_mile)), data = .)
+      coef_model = coef(model)["year_numerical"]
+      percentage_change = (exp(coef_model) - 1) * 100
+      p_values = summary(model)$coefficients["year_numerical", "Pr(>|z|)"]
+      aic_value = AIC(model)
+      bic_value = BIC(model)
+
+      data.frame(coef = coef_model, percentage_change, p_value = p_values, 
+                 AIC = aic_value, BIC = bic_value)
+    }, error = function(e) {
+      # Return NA in case of an error
+      data.frame(coef = NA, percentage_change = NA, p_value = NA, 
+                 AIC = NA, BIC = NA)
+    })
+  })
+slopes_ehe_cut = slopes_ehe_poi_area_adj %>% filter(abs(percentage_change) < 45)
+slopes_ehe_cut = slopes_ehe_cut %>%
+  mutate(percentage_change_cat = case_when(
+    percentage_change < -10 ~ "<-10%",
+    percentage_change >=-10 & percentage_change<= -5 ~ "-10 - -5%",
+    percentage_change >-5 & percentage_change<= -1 ~ "-5 - -1%",
+    percentage_change >-1 & percentage_change<= 0 ~ "-1-0%",
+    percentage_change >0 & percentage_change<= 1 ~ "0-1%",
+    percentage_change >1 & percentage_change <= 5 ~ "1-5%",
+    percentage_change >5 & percentage_change <= 10 ~ "5-10%", 
+    TRUE ~ ">10%"
+  )) %>%
+  mutate(percentage_change_cat = factor(percentage_change_cat, 
+                                        levels = c("<-10%","-10 - -5%","-5 - -1%",
+                                                   "-1-0%","0-1%",
+                                                   "1-5%", "5-10%", ">10%")))
+```
+
+#### Map
+
+```{r}
+# Merge with geometry data
+county_boundaris_ehe_catalog <- merge(counties_geo,
+          slopes_ehe_cut %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+
+#heat_colors <- c("<1%" = "lightblue", "1-5%" = "yellow", "5-10%" = "orange", ">10%" = "red")
+#palette_ehe <- rev(brewer.pal(8, "RdBu"))
+p_perc_change_ehe = ggplot() +
+  geom_sf(data = county_boundaris_ehe_catalog,
+            aes(fill = percentage_change_cat), color = NA,
+            lwd = .1) + 
+  scale_fill_manual(values = palette, na.translate = F) +
+  geom_sf(data = states_geo, fill = NA, color = "black", size = 0.1) +
+  labs(fill = "Percentage Change in Frequency EHE (Area adjusted)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+
+p_perc_change_ehe
+#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/perc_change_ehe.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_perc_change_ehe)
+#dev.off()
+```
+
+#### Interactive map
+
+```{r}
+pal_cat <- colorFactor(palette = rev(brewer.pal(8, "PuOr")), 
+                   domain = county_boundaris_ehe_catalog$percentage_change_cat)
+
+county_boundaries_catalog_ehe_trans <- st_transform(county_boundaris_ehe_catalog, crs = 4326)
+state_boundaris_catalog <- st_transform(states_geo, crs = 4326)
+
+labels_ehe <- sprintf(
+  "<strong>%s</strong><br/>%g ",
+  county_boundaris_ehe_catalog$NAME, 
+  county_boundaris_ehe_catalog$percentage_change) %>% 
+  lapply(htmltools::HTML)
+total_ehe_interactive_plot <- leaflet(county_boundaries_catalog_ehe_trans) %>%
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addPolygons(data = state_boundaris_catalog,
+              fillColor = NA,  
+              weight = 2,
+              color = "#000",  
+              fillOpacity = 0) %>% 
+  addPolygons(fillColor = ~pal_cat(percentage_change_cat),
+              weight = 1,
+              opacity = 1,
+              color = "#888",
+              dashArray = "3",
+              fillOpacity = 0.7,
+              highlightOptions = highlightOptions(
+                weight = 3,
+                color = "#555",
+                dashArray = "",
+                fillOpacity = 0.8,
+                bringToFront = TRUE),
+              label = labels_ehe,
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto")) %>%
+  addLegend(pal = pal_cat, values = ~percentage_change_cat, opacity = 0.7, title = NULL,
+  position = "bottomright",na.label = "") %>%
+  addControl(
+    html = "<strong>Percentage Change in EHE Frequency</strong>",
+    position = "bottomleft",
+    className = "map-title"
+)
+total_ehe_interactive_plot
+```
+
+### Extreme Cold Events
+
+#### Complete yearly aggregated counts
+
+```{r, message=FALSE, warning=FALSE}
+event_count_ece <- dat_table %>%
+  filter(event_type == "Extreme Cold Event") %>%
+  group_by(GEOID, NAME, STATE_NAME, year_numerical) %>%
+  summarize(event_count = n_distinct(event_date))
+
+event_count_ece = event_count_ece %>% complete(
+  year_numerical = 2008:2022,
+  fill =  list(event_count = 0)
+  )
+event_count_ece = merge(event_count_ece, avg_total_area, 
+                         by = c("GEOID", "NAME", "STATE_NAME"), all = TRUE)
+
+event_count_ece = event_count_ece %>% 
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  mutate(mean_event_count = mean(event_count),
+         sd = sd(event_count),
+         outlier_upper = mean_event_count + 3*sd,
+         outlier_lower = mean_event_count - 3*sd ) %>%
+  mutate(event_count_outlier_rm = 
+           ifelse((event_count>=outlier_lower&event_count<=outlier_upper), event_count, 0))
+
+nrow(event_count_ece %>% filter(event_count != event_count_outlier_rm))
+```
+
+#### Regression Analaysis 
+```{r, message=FALSE, warning=FALSE}
+# NB Regression
+slopes_ece_poi_area_adj <- event_count_ece %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  do({
+    # Fit the Negative Binomial model
+    tryCatch({
+      model = MASS::glm.nb(event_count ~ year_numerical + 
+                            offset(log(avg_total_area_sq_mile)), data = .)
+      coef_model = coef(model)["year_numerical"]
+      percentage_change = (exp(coef_model) - 1) * 100
+      p_values = summary(model)$coefficients["year_numerical", "Pr(>|z|)"]
+      aic_value = AIC(model)
+      bic_value = BIC(model)
+
+      data.frame(coef = coef_model, percentage_change, p_value = p_values, 
+                 AIC = aic_value, BIC = bic_value)
+    }, error = function(e) {
+      # Return NA in case of an error
+      data.frame(coef = NA, percentage_change = NA, p_value = NA, 
+                 AIC = NA, BIC = NA)
+    })
+  })
+
+slopes_ece_cut = slopes_ece_poi_area_adj %>% filter(abs(percentage_change) < 45)
+slopes_ece_cut = slopes_ece_cut %>%
+  mutate(percentage_change_cat = case_when(
+    percentage_change < -10 ~ "<-10%",
+    percentage_change >=-10 & percentage_change<= -5 ~ "-10 - -5%",
+    percentage_change >-5 & percentage_change<= -1 ~ "-5 - -1%",
+    percentage_change >-1 & percentage_change<= 0 ~ "-1-0%",
+    percentage_change >0 & percentage_change<= 1 ~ "0-1%",
+    percentage_change >1 & percentage_change <= 5 ~ "1-5%",
+    percentage_change >5 & percentage_change <= 10 ~ "5-10%", 
+    percentage_change > 10 ~ ">10%"
+  )) %>%
+  mutate(percentage_change_cat = factor(percentage_change_cat, 
+                                        levels = c("<-10%","-10 - -5%","-5 - -1%",
+                                                   "-1-0%","0-1%",
+                                                   "1-5%", "5-10%", ">10%")))
+```
+
+
+#### Map
+
+```{r}
+# Merge with geometry data
+county_boundaris_ece_catalog <- merge(counties_geo,
+          slopes_ece_cut %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf()      
+
+#heat_colors <- c("<1%" = "lightblue", "1-5%" = "yellow", "5-10%" = "orange", ">10%" = "red")
+#palette_ece <- brewer.pal(8, "RdBu")
+p_perc_change_ece = ggplot() +
+  geom_sf(data = county_boundaris_ece_catalog,
+            aes(fill = percentage_change_cat), color = NA,
+            lwd = .1) + 
+  scale_fill_manual(values = palette, na.translate = F) +
+  geom_sf(data = states_geo, fill = NA, color = "black", size = 0.1) +
+  labs(fill = "Percentage Change in Frequency ECE (Area adjusted)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+
+p_perc_change_ece
+#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/perc_change_ece.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_perc_change_ece)
+#dev.off()
+```
+
+#### Interactive map
+
+```{r}
+pal_cat <- colorFactor(palette = rev(brewer.pal(8, "PuOr")), 
+                   domain = county_boundaris_ece_catalog$percentage_change_cat)
+
+county_boundaries_catalog_ece_trans <- st_transform(county_boundaris_ece_catalog, crs = 4326)
+state_boundaris_catalog <- st_transform(states_geo, crs = 4326)
+
+labels_ece <- sprintf(
+  "<strong>%s</strong><br/>%g ",
+  county_boundaris_ece_catalog$NAME, 
+  county_boundaris_ece_catalog$percentage_change) %>% 
+  lapply(htmltools::HTML)
+total_ece_interactive_plot <- leaflet(county_boundaries_catalog_ece_trans) %>%
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addPolygons(data = state_boundaris_catalog,
+              fillColor = NA,  
+              weight = 2,
+              color = "#000",  
+              fillOpacity = 0) %>% 
+  addPolygons(fillColor = ~pal_cat(percentage_change_cat),
+              weight = 1,
+              opacity = 1,
+              color = "#888",
+              dashArray = "3",
+              fillOpacity = 0.7,
+              highlightOptions = highlightOptions(
+                weight = 3,
+                color = "#555",
+                dashArray = "",
+                fillOpacity = 0.8,
+                bringToFront = TRUE),
+              label = labels_ece,
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto")) %>%
+  addLegend(pal = pal_cat, values = ~percentage_change_cat, opacity = 0.7, title = NULL,
+  position = "bottomright",na.label = "") %>%
+  addControl(
+    html = "<strong>Percentage Change in ECE Frequency</strong>",
+    position = "bottomleft",
+    className = "map-title"
+)
+total_ece_interactive_plot
+```
