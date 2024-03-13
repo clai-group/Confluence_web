@@ -1,0 +1,201 @@
+---
+title: "EHCE Frequency Trend Analysis -- Observation"
+author: "Jingya Cheng"
+date: "2024-01-03"
+categories: [code, analysis, trend]
+---
+
+# Extreme Heat/Cold Events Frequency Trend Analysis
+
+```{r, include=FALSE}
+library(readr)
+library(viridis)
+library(tidyverse)
+library(sf)
+library(gridExtra)
+library(RColorBrewer)
+library(pscl)
+library(reshape2)
+library(data.table)
+library(broom)
+library(DescTools)
+library(MASS)
+library(ggridges)
+library(purrr)
+library(leaflet)
+library(tidyr)
+```
+
+### Loading the base spatail data set including Counties and States boundaires
+
+```{r}
+source_dir <- "./data/"
+states_file_path <- file.path(source_dir,
+                              "us49_states_geo_tigris.rds")
+states_geo <- readRDS(states_file_path)[[1]]
+counties_file_path <- file.path(source_dir,
+                                "us49_counties_geo_tigris.rds")
+counties_geo <- readRDS(counties_file_path)[[1]]
+#plot(counties_geo[1])
+```
+
+### Loading the aggregate extreme events data set
+
+```{r}
+dat_path <- file.path(source_dir,
+                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+file_size <- file.info(dat_path)$size
+dat <- readRDS(dat_path)[[1]]
+```
+
+### Overall frequency analysis
+
+```{r}
+dat_table = dat %>%  st_drop_geometry()
+dat_table$total_area_sq_mile = dat_table$total_area/2590000
+```
+
+#### Average counts by county
+
+```{r, warning=FALSE}
+# Overall average counts per area
+avg_dat = dat_table %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  summarize(event_count = n(),
+            avg_count_per_year = event_count/15,
+            avg_total_area_100_sq_mile = mean(total_area_sq_mile)/100)%>%
+  mutate(avg_counts = avg_count_per_year/avg_total_area_100_sq_mile) 
+
+
+# map
+avg_dat_map = avg_dat %>% 
+  mutate(avg_counts_map = case_when(
+    avg_counts < 0.1 ~ 0,
+    avg_counts > 13 ~ 13,
+    TRUE ~ avg_counts
+  ))
+
+county_boundaries_catalog_all_counts <- merge(counties_geo,
+          avg_dat_map %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+#palette <- rev(brewer.pal(4, "RdYlBu"))
+# Frequency all map with grey for non-significant p-values
+p_count_all_map = ggplot() +
+  geom_sf(data = county_boundaries_catalog_all_counts,
+            aes(fill = avg_counts_map), color = NA,
+            lwd = .1) + 
+  scale_fill_gradientn(colors = c("white", "lightpink", "pink", 
+                                  "mediumpurple", "darkmagenta"),
+                       values = scales::rescale(c(0, 0.25, 0.5, 0.75, 1))) +
+  geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.5) +
+  labs(fill = "Average Number of Extreme Events (2008-2022) per 100 square miles") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+
+p_count_all_map
+#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/count_all_per_area.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_count_all_map)
+#dev.off()
+```
+
+### Extreme Heat Events
+
+#### Average Counts by County
+
+```{r}
+avg_counts_county_ehe = dat_table %>%
+  filter(event_type == "Extreme Heat Event") %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  summarize(event_count = n(),
+            avg_count_per_year = event_count/15,
+            avg_total_area_100_sq_mile = mean(total_area_sq_mile)/100)%>%
+  mutate(avg_counts = avg_count_per_year/avg_total_area_100_sq_mile) 
+
+# map
+avg_dat_map_ehe = avg_counts_county_ehe %>% 
+  mutate(avg_counts_map = case_when(
+    avg_counts < 0.1 ~ 0,
+    avg_counts > 13 ~ 13,
+    TRUE ~ avg_counts
+  ))
+
+#avg_dat_ex_ehe = avg_counts_county_ehe %>% filter(STATE_NAME != "Virginia")
+county_boundaries_catalog_ehe_counts <- merge(counties_geo,
+          avg_dat_map_ehe %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+
+# Frequency all map with grey for non-significant p-values
+p_ehe_count_map = ggplot() +
+  geom_sf(data = county_boundaries_catalog_ehe_counts,
+            aes(fill = avg_counts_map), color = NA,
+            lwd = .1) + 
+  scale_fill_gradientn(colors = c("white", "yellow", "orange", "red", "darkred"),
+                       values = scales::rescale(c(0, 0.25, 0.5, 0.75, 1))) +
+  geom_sf(data = states_geo, fill = NA, color = "black", size = 0.1) +
+  labs(fill = "Average Number of Extreme Heat Events per 100 Square Miles (2008-2022)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+
+p_ehe_count_map
+#png("~/Desktop/count_ehe_per_area.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_ehe_count_map)
+#dev.off()
+```
+
+### Extreme Cold Events
+
+#### Average counts by county
+
+```{r}
+avg_counts_county_ece = dat_table %>%
+  filter(event_type == "Extreme Cold Event") %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  summarize(event_count = n(),
+            avg_count_per_year = event_count/15,
+            avg_total_area_100_sq_mile = mean(total_area_sq_mile)/100)%>%
+  mutate(avg_counts = avg_count_per_year/avg_total_area_100_sq_mile) 
+
+# map
+avg_dat_map_ece = avg_counts_county_ece %>% 
+  mutate(avg_counts_map = case_when(
+    avg_counts < 0.1 ~ 0,
+    avg_counts > 13 ~ 13,
+    TRUE ~ avg_counts
+  ))
+county_boundaries_catalog_ece_counts <- merge(counties_geo,
+          avg_dat_map_ece %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+
+# Frequency all map with grey for non-significant p-values
+p_ece_count_map = ggplot() +
+  geom_sf(data = county_boundaries_catalog_ece_counts,
+            aes(fill = avg_counts_map), color = NA,
+            lwd = .1) + 
+  scale_fill_gradientn(colors = c("white", "lightblue", "dodgerblue", "blue", "darkblue"),
+                       values = scales::rescale(c(0, 0.25, 0.5, 0.75, 1))) +
+  geom_sf(data = states_geo, fill = NA, color = "black", size = 0.1) +
+  labs(fill = "Average Number of Extreme Cold Events per 100 Square Miles  (2008-2022)") +
+  theme_void() + 
+  theme(legend.position = "bottom")
+
+p_ece_count_map
+#png("~/Desktop/count_ece_per_area.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_ece_count_map)
+#dev.off()
+```
+

@@ -39,46 +39,30 @@ dat_path <- file.path(source_dir,
                       "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
+st_crs(dat)$epsg
 ```
 
-### Calculating the average intensity with complete yearly intensity records
 
-#### Overall intensity
+### Overall intensity
 
 ```{r, warning = FALSE}
 dat_table = dat %>%  st_drop_geometry()
-## Adding years with no event to the dataset 
-lookup_table <- dat_table %>%
-  dplyr::select(GEOID, NAME, STUSPS, STATE_NAME) %>%
-  distinct() %>%
-  filter(!is.na(NAME) & !is.na(STUSPS) & !is.na(STATE_NAME))
-
-fill_na_with_lookup <- function(dat_table, lookup_table, column) {
-  na_rows <- is.na(dat_table[[column]])
-  lookup_values <- lookup_table[match(dat_table$GEOID[na_rows], lookup_table$GEOID), column]
-  dat_table[[column]][na_rows] <- lookup_values
-  return(dat_table)
-}
-year_range <- data.frame(year_numerical = 2008:2022)
-unique_geoids <- unique(dat$GEOID)
-year_geoid_combinations <- expand.grid(year_numerical = year_range$year_numerical, GEOID = unique_geoids)
 
 ## Overall
 dat_table$abs_intensity = abs(dat_table$avg_intensity)
 
 county_yearly_intensity <- dat_table %>%
+  dplyr::select(GEOID,NAME, STATE_NAME, year_numerical, event_date, abs_intensity) %>%
+  distinct() %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
-  summarize(mean_intensity = mean(abs_intensity),
-            avg_impacted_area_hectare = mean(impacted_area_hectare))
-dat_intensity_all <- merge(year_geoid_combinations, county_yearly_intensity, by = c("year_numerical", "GEOID"), all = TRUE)
-dat_intensity_all["mean_intensity"] <- lapply(dat_intensity_all["mean_intensity"], function(x) ifelse(is.na(x), 0, x))
-dat_intensity_all["avg_impacted_area_hectare"] <- lapply(dat_intensity_all["avg_impacted_area_hectare"], function(x) ifelse(is.na(x), 0, x))
-dat_intensity_all <- fill_na_with_lookup(dat_intensity_all, 
-                                               lookup_table, "NAME")
-dat_intensity_all <- fill_na_with_lookup(dat_intensity_all, 
-                                               lookup_table, "STATE_NAME")
+  summarize(mean_intensity = mean(abs_intensity))
 
-#linear regression and calcualte percentage change with standardized average intensity 
+dat_intensity_all = county_yearly_intensity %>% complete(
+  year_numerical = 2008:2022,
+  fill =  list(mean_intensity = 0)
+  )
+
+#linear regression and calculate percentage change with standardized average intensity 
 lm_intensity_all <- dat_intensity_all %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
   do(model = lm(mean_intensity ~ year_numerical, data = .))
@@ -122,21 +106,20 @@ ggplot() +
   theme(legend.position = "bottom")       
 ```
 
-#### Extreme Heat Events
+### Extreme Heat Events
 
 ```{r, warning = FALSE}
 county_heat_intensity <- dat_table %>%
   filter(event_type == "Extreme Heat Event") %>%
+  dplyr::select(GEOID,NAME, STATE_NAME, year_numerical, event_date, abs_intensity) %>%
+  distinct() %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
-  summarize(mean_intensity = mean(abs_intensity),
-            avg_impacted_area_hectare = mean(impacted_area_hectare))
+  summarize(mean_intensity = mean(abs_intensity))
 
-dat_intensity_ehe <- merge(year_geoid_combinations, county_heat_intensity, by = c("year_numerical", "GEOID"), all = TRUE)
-dat_intensity_ehe["mean_intensity"] <- lapply(dat_intensity_ehe["mean_intensity"], function(x) ifelse(is.na(x), 0, x))
-dat_intensity_ehe["avg_impacted_area_hectare"] <- lapply(dat_intensity_ehe["avg_impacted_area_hectare"], function(x) ifelse(is.na(x), 0, x))
-
-dat_intensity_ehe <- fill_na_with_lookup(dat_intensity_ehe, lookup_table, "NAME")
-dat_intensity_ehe <- fill_na_with_lookup(dat_intensity_ehe, lookup_table, "STATE_NAME")
+dat_intensity_ehe = county_heat_intensity %>% complete(
+  year_numerical = 2008:2022,
+  fill =  list(mean_intensity = 0)
+  )
 
 ## Standardized linear regression
 lm_intensity_ehe <- dat_intensity_ehe %>%
@@ -181,21 +164,20 @@ ggplot() +
   theme(legend.position = "bottom")
 ```
 
-#### Extreme Cold Events
+### Extreme Cold Events
 
 ```{r, warning = FALSE}
 county_cold_intensity <- dat_table %>%
   filter(event_type == "Extreme Cold Event") %>%
+  dplyr::select(GEOID,NAME, STATE_NAME, year_numerical, event_date, abs_intensity) %>%
+  distinct() %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
-  summarize(mean_intensity = mean(abs_intensity),
-            avg_impacted_area_hectare = mean(impacted_area_hectare))
+  summarize(mean_intensity = mean(abs_intensity))
 
-dat_intensity_ece <- merge(year_geoid_combinations, county_cold_intensity, by = c("year_numerical", "GEOID"), all = TRUE)
-dat_intensity_ece["mean_intensity"] <- lapply(dat_intensity_ece["mean_intensity"], function(x) ifelse(is.na(x), 0, x))
-dat_intensity_ece["avg_impacted_area_hectare"] <- lapply(dat_intensity_ece["avg_impacted_area_hectare"], function(x) ifelse(is.na(x), 0, x))
-
-dat_intensity_ece <- fill_na_with_lookup(dat_intensity_ece, lookup_table, "NAME")
-dat_intensity_ece <- fill_na_with_lookup(dat_intensity_ece, lookup_table, "STATE_NAME")
+dat_intensity_ece = county_cold_intensity %>% complete(
+  year_numerical = 2008:2022,
+  fill =  list(mean_intensity = 0)
+  )
 
 lm_intensity_ece <- dat_intensity_ece %>%
   group_by(GEOID, NAME, STATE_NAME) %>%

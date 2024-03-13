@@ -42,40 +42,25 @@ file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
 
-### Calculating the average area with complete yearly area records
-
-#### Overall area
+### Overall area
 
 ```{r}
 dat_table = dat %>%  st_drop_geometry()
-## Adding years with no event to the dataset 
-lookup_table <- dat_table %>%
-  dplyr::select(GEOID, NAME, STUSPS, STATE_NAME) %>%
-  distinct() %>%
-  filter(!is.na(NAME) & !is.na(STUSPS) & !is.na(STATE_NAME))
-
-fill_na_with_lookup <- function(dat_table, lookup_table, column) {
-  na_rows <- is.na(dat_table[[column]])
-  lookup_values <- lookup_table[match(dat_table$GEOID[na_rows], lookup_table$GEOID), column]
-  dat_table[[column]][na_rows] <- lookup_values
-  return(dat_table)
-}
-year_range <- data.frame(year_numerical = 2008:2022)
-unique_geoids <- unique(dat$GEOID)
-year_geoid_combinations <- expand.grid(year_numerical = year_range$year_numerical, GEOID = unique_geoids)
 
 ## Overall
-county_yearly_area_hectare <- dat_table %>%
+county_yearly_area_hectare = dat_table %>%
+  dplyr::select(GEOID,NAME, STATE_NAME, year_numerical, event_date, impacted_to_total_ratio) %>%
+  distinct() %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
   summarize(avg_impacted_to_total_ratio = mean(impacted_to_total_ratio))
-dat_area_all <- merge(year_geoid_combinations, county_yearly_area_hectare, by = c("year_numerical", "GEOID"), all = TRUE)
-dat_area_all["avg_impacted_to_total_ratio"] <- lapply(dat_area_all["avg_impacted_to_total_ratio"], function(x) ifelse(is.na(x), 0, x))
-dat_area_all <- fill_na_with_lookup(dat_area_all, 
-                                               lookup_table, "NAME")
-dat_area_all <- fill_na_with_lookup(dat_area_all, 
-                                               lookup_table, "STATE_NAME")
 
-#linear regression and calcualte percentage change
+dat_area_all = county_yearly_area_hectare %>% 
+  complete(
+  year_numerical = 2008:2022,
+  fill =  list(avg_impacted_to_total_ratio = 0)
+  )
+
+#linear regression and calculate percentage change
 lm_area_all <- dat_area_all %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
   do(model = lm(avg_impacted_to_total_ratio~ year_numerical, data = .))
@@ -85,8 +70,6 @@ slopes_all <- lm_area_all %>%
   mutate(slope = coef(model)[["year_numerical"]],
          p_value = summary(model)$coefficients["year_numerical","Pr(>|t|)"],
          r_squared = glance(model)$r.squared)
-
-
 ```
 
 ```{r}
@@ -122,21 +105,23 @@ ggplot() +
   theme(legend.position = "bottom")
 ```
 
-#### Extreme Heat Events
+### Extreme Heat Events
 
 ```{r}
 county_ehe_area_hectare <- dat_table %>%
   filter(event_type == "Extreme Heat Event") %>%
+  dplyr::select(GEOID,NAME, STATE_NAME, year_numerical, event_date, impacted_to_total_ratio) %>%
+  distinct() %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
   summarize(avg_impacted_to_total_ratio = mean(impacted_to_total_ratio))
-dat_area_ehe <- merge(year_geoid_combinations, county_ehe_area_hectare, by = c("year_numerical", "GEOID"), all = TRUE)
-dat_area_ehe["avg_impacted_to_total_ratio"] <- lapply(dat_area_ehe["avg_impacted_to_total_ratio"], function(x) ifelse(is.na(x), 0, x))
-dat_area_ehe <- fill_na_with_lookup(dat_area_ehe, 
-                                               lookup_table, "NAME")
-dat_area_ehe <- fill_na_with_lookup(dat_area_ehe, 
-                                               lookup_table, "STATE_NAME")
 
-#linear regression and calcualte percentage change
+dat_area_ehe = county_ehe_area_hectare %>% 
+  complete(
+  year_numerical = 2008:2022,
+  fill =  list(avg_impacted_to_total_ratio = 0)
+  )
+
+#linear regression and calculate percentage change
 lm_area_ehe <- dat_area_ehe %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
   do(model = lm(avg_impacted_to_total_ratio ~ year_numerical, data = .))
@@ -181,21 +166,22 @@ ggplot() +
   theme(legend.position = "bottom")
 ```
 
-#### Extreme Cold Events
+### Extreme Cold Events
 
 ```{r}
 county_ece_area_hectare <- dat_table %>%
   filter(event_type == "Extreme Cold Event") %>%
+  dplyr::select(GEOID,NAME, STATE_NAME, year_numerical, event_date, impacted_to_total_ratio) %>%
+  distinct() %>%
   group_by(GEOID,NAME, STATE_NAME, year_numerical) %>%
   summarize(avg_impacted_to_total_ratio = mean(impacted_to_total_ratio))
-dat_area_ece <- merge(year_geoid_combinations, county_ece_area_hectare, by = c("year_numerical", "GEOID"), all = TRUE)
-dat_area_ece["avg_impacted_to_total_ratio"] <- lapply(dat_area_ece["avg_impacted_to_total_ratio"], function(x) ifelse(is.na(x), 0, x))
-dat_area_ece <- fill_na_with_lookup(dat_area_ece, 
-                                               lookup_table, "NAME")
-dat_area_ece <- fill_na_with_lookup(dat_area_ece, 
-                                               lookup_table, "STATE_NAME")
+dat_area_ece = county_ehe_area_hectare %>% 
+  complete(
+  year_numerical = 2008:2022,
+  fill =  list(avg_impacted_to_total_ratio = 0)
+  )
 
-#linear regression and calcualte percentage change
+#linear regression and calculate percentage change
 lm_area_ece <- dat_area_ece %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
   do(model = lm(avg_impacted_to_total_ratio ~ year_numerical, data = .))
@@ -239,51 +225,4 @@ ggplot() +
   labs(fill = "ECE Impacted Area Ratio Coefficient") +
   theme_void() + 
   theme(legend.position = "bottom")
-```
-
-### State Level Analysis for EHE
-
-```{r}
-state_ehe_dat = dat_area_ehe %>% 
-  select(year_numerical, STATE_NAME, avg_impacted_to_total_ratio) 
-
-lm_state_area_ehe <- state_ehe_dat %>%
-  group_by(STATE_NAME) %>%
-  do(model = lm(avg_impacted_to_total_ratio ~ year_numerical, data = .))
-
-slopes_state_ehe <- lm_state_area_ehe %>%
-  rowwise() %>%
-  mutate(slope = coef(model)[["year_numerical"]],
-         p_value = summary(model)$coefficients["year_numerical","Pr(>|t|)"],
-         r_squared = glance(model)$r.squared)
-
-gini_coef = slopes_ehe %>%
-  group_by(STATE_NAME) %>%
-  summarise(Gini_coef = Gini(slope))
-```
-
-#### Map
-
-```{r}
-# Merge with geometry data
-state_boundaris_ehe_catalog <- merge(states_geo,
-          slopes_state_ehe %>% st_drop_geometry(),
-          by.x="STATE_NAME",
-          by.y="STATE_NAME",
-          all.x = TRUE,
-          all.y = TRUE,
-          suffix = c("","_sp")) %>% st_as_sf() 
-# Area ECE map
-ggplot() +
-  geom_sf(data = state_boundaris_ehe_catalog,
-            aes(fill = slope), color = NA,
-            lwd = .1) + 
-  scale_fill_distiller(palette = "RdBu", 
-                       limits = c(-0.071, 0.071)
-                       ) +
-  geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.5) +
-  labs(fill = "State Area EHE") +
-  theme_void() + 
-  theme(legend.position = "bottom")
-
 ```
