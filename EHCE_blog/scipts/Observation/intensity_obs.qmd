@@ -47,7 +47,8 @@ st_crs(dat)$epsg
 
 ```{r, warning = FALSE}
 dat_table = dat %>%  st_drop_geometry()
-
+dat_table = dat_table %>% 
+  filter(!(event_type == "Extreme Cold Event" & month_numerical %in% 5:9))
 ## Overall
 dat_table$abs_intensity = abs(dat_table$avg_intensity)
 

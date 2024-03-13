@@ -42,12 +42,17 @@ dat <- readRDS(dat_path)[[1]]
 st_crs(dat)$epsg
 ```
 
+### Data processing
+Filter out Extreme Cold events from May to September each year. 
+```{r}
+dat_table = dat %>%  st_drop_geometry()
+dat_table = dat_table %>% 
+  filter(!(event_type == "Extreme Cold Event" & month_numerical %in% 5:9))
+```
 
 ### Overall intensity
 
 ```{r, warning = FALSE}
-dat_table = dat %>%  st_drop_geometry()
-
 ## Overall
 dat_table$abs_intensity = abs(dat_table$avg_intensity)
 

@@ -42,10 +42,18 @@ file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
 
+
+### Data processing
+Filter out Extreme Cold events from May to September each year. 
+```{r}
+dat_table = dat %>%  st_drop_geometry()
+dat_table = dat_table %>% 
+  filter(!(event_type == "Extreme Cold Event" & month_numerical %in% 5:9))
+```
+
 ### Create seasonal summary by county
 
 ```{r}
-dat_table = dat %>%  st_drop_geometry()
 dat_ehe_season = dat_table %>% filter(event_type == 'Extreme Heat Event') %>%
   dplyr::select(GEOID, NAME, STUSPS, STATE_NAME, 
          event_date, event_type, avg_intensity, year_numerical, 

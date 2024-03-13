@@ -48,6 +48,15 @@ file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
 
+### Data processing
+Filter out Extreme Cold events from May to September each year. 
+```{r}
+dat_table = dat %>%  st_drop_geometry()
+dat_table = dat_table %>% 
+  filter(!(event_type == "Extreme Cold Event" & month_numerical %in% 5:9))
+```
+
+
 ### Overall frequency analysis
 
 #### Complete yearly aggregated counts
@@ -55,7 +64,6 @@ dat <- readRDS(dat_path)[[1]]
 Complete the yearly frequency counts by assign 0 to that year when there's no extreme event records.
 
 ```{r}
-dat_table = dat %>%  st_drop_geometry()
 dat_table$total_area_sq_mile = dat_table$total_area/2590000
 avg_total_area = dat_table %>%
   group_by(GEOID, NAME, STATE_NAME) %>%

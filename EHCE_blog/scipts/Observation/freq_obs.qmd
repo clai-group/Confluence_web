@@ -52,6 +52,8 @@ dat <- readRDS(dat_path)[[1]]
 
 ```{r}
 dat_table = dat %>%  st_drop_geometry()
+dat_table = dat_table %>% 
+  filter(!(event_type == "Extreme Cold Event" & month_numerical %in% 5:9))
 dat_table$total_area_sq_mile = dat_table$total_area/2590000
 ```
 
