@@ -38,22 +38,20 @@ counties_geo <- readRDS(counties_file_path)[[1]]
 
 ```{r}
 dat_path <- file.path(source_dir,
-                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 
 dat_table = dat %>%  st_drop_geometry()
-dat_table$total_area_100_sq_mile = dat_table$total_area/259000000
-dat_table$total_area_sq_mile = dat_table$total_area/2590000
-
-counties_geo$total_area_sq_mile = counties_geo$ALAND/2590000
+dat_table = dat_table %>% 
+  filter(!(event_type == "Extreme Cold Event" & month_numerical %in% 5:9))
 ```
 
 ### Load prediction dataset
 
 ```{r}
-pred_ehe_1 =read.csv("~/Desktop/EHE_Pred_freq_dat/frequency_pred_EHE_last_15years.csv")
-pred_ehe_2 = read.csv("~/Desktop/EHE_Pred_freq_dat/lstm_pred_freq_last_15years.csv")
+pred_ehe_1 =read.csv("~/Desktop/frequency_pred_EHE.csv")
+pred_ehe_2 = read.csv("~/Desktop/lstm_pred_freq.csv")
 pred_ehe_2$method = "LSTM" 
 pred_ehe_1 = pred_ehe_1 %>% dplyr::select(GEOID, years, event_count,LB, UB, RMSE, method) 
 colnames(pred_ehe_2) = c("GEOID", "years", "event_count","LB","UB", "RMSE", "method")
@@ -96,8 +94,8 @@ pred_ehe_wide = best_models_df %>%
 ```
 
 ```{r}
-hist(best_models_df$event_count_2025)
-table(best_models_df$method)
+hist(pred_ehe_wide$event_count_2025)
+table(pred_ehe_wide$method)
 ```
 ## Frequency obs vs. pred table
 ```{r}
@@ -107,7 +105,7 @@ pred_15years_avg = best_models_df %>%
 
 obs_15years_avg = dat_table %>% filter(event_type == "Extreme Heat Event") %>%
   group_by(GEOID, NAME, STATE_NAME) %>%
-  summarize(event_count = n(),
+  summarize(event_count = n_distinct(event_date),
             obs_avg_count_per_year = event_count/15)
 
 freq_table = merge(obs_15years_avg, pred_15years_avg, by = "GEOID")

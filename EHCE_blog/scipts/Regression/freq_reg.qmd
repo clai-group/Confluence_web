@@ -43,7 +43,7 @@ counties_geo <- readRDS(counties_file_path)[[1]]
 
 ```{r}
 dat_path <- file.path(source_dir,
-                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
@@ -119,8 +119,33 @@ slopes_all <- event_count_all %>%
     })
   })
 
-slopes_all_cut = slopes_all %>% filter(abs(percentage_change) < 45)
-slopes_all_cut = slopes_all_cut %>%
+zeroinfl_all = event_count_all %>% group_by(GEOID, NAME, STATE_NAME) %>%
+  filter((first(event_count_outlier_rm) == 0) | (sum(event_count_outlier_rm == 0) > 5)) %>%
+  ungroup() 
+slopes_all_zinb_area_adj <- zeroinfl_all %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  do({
+    # Fit the Negative Binomial model
+    tryCatch({
+      model = zeroinfl(event_count_outlier_rm ~ year_numerical | 1 + 
+                            offset(log(avg_total_area_sq_mile)), data = .,
+                       dist = "negbin")
+      coef_model = coef(model)[2]
+      percentage_change = (exp(coef_model) - 1) * 100
+
+      data.frame(coef = coef_model, percentage_change)
+    }, error = function(e) {
+      # Return NA in case of an error
+      data.frame(coef = NA, percentage_change = NA)
+    })
+  })
+
+nb_all = event_count_all[!(event_count_all$GEOID %in% zeroinfl_all$GEOID),]
+slope_all_nb = slopes_all[slopes_all$GEOID %in% nb_all$GEOID,]
+
+slope_all_combine = rbind(slopes_all_zinb_area_adj, slope_all_nb)
+slope_all_combinel_cut = slope_all_combine %>% filter(abs(percentage_change) < 45)
+slope_all_combinel_cut = slope_all_combinel_cut %>%
   mutate(percentage_change_cat = case_when(
     percentage_change < -10 ~ "<-10%",
     percentage_change >=-10 & percentage_change<= -5 ~ "-10 - -5%",
@@ -129,7 +154,7 @@ slopes_all_cut = slopes_all_cut %>%
     percentage_change >0 & percentage_change<= 1 ~ "0-1%",
     percentage_change >1 & percentage_change <= 5 ~ "1-5%",
     percentage_change >5 & percentage_change <= 10 ~ "5-10%", 
-    TRUE ~ ">10%"
+    percentage_change > 10 ~ ">10%"
   )) %>%
   mutate(percentage_change_cat = factor(percentage_change_cat, 
                                         levels = c("<-10%","-10 - -5%","-5 - -1%",
@@ -142,7 +167,7 @@ slopes_all_cut = slopes_all_cut %>%
 ```{r}
 # Merge with geometry data
 county_boundaries_catalog_all <- merge(counties_geo,
-          slopes_all_cut %>% st_drop_geometry(),
+          slope_all_combinel_cut %>% st_drop_geometry(),
           by.x="GEOID",
           by.y="GEOID",
           all.x = TRUE,
@@ -266,8 +291,33 @@ slopes_ehe_poi_area_adj <- event_count_ehe %>%
                  AIC = NA, BIC = NA)
     })
   })
-slopes_ehe_cut = slopes_ehe_poi_area_adj %>% filter(abs(percentage_change) < 45)
-slopes_ehe_cut = slopes_ehe_cut %>%
+zeroinfl_ehe = event_count_ehe %>% group_by(GEOID, NAME, STATE_NAME) %>%
+  filter((first(event_count_outlier_rm) == 0) | (sum(event_count_outlier_rm == 0) > 5)) %>%
+  ungroup() 
+slopes_ehe_zinb_area_adj <- zeroinfl_ehe %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  do({
+    # Fit the Negative Binomial model
+    tryCatch({
+      model = zeroinfl(event_count_outlier_rm ~ year_numerical | 1 + 
+                            offset(log(avg_total_area_sq_mile)), data = .,
+                       dist = "negbin")
+      coef_model = coef(model)[2]
+      percentage_change = (exp(coef_model) - 1) * 100
+
+      data.frame(coef = coef_model, percentage_change)
+    }, error = function(e) {
+      # Return NA in case of an error
+      data.frame(coef = NA, percentage_change = NA)
+    })
+  })
+
+nb_ehe = event_count_ehe[!(event_count_ehe$GEOID %in% zeroinfl_ehe$GEOID),]
+slope_ehe_nb = slopes_ehe_poi_area_adj[slopes_ehe_poi_area_adj$GEOID %in% nb_ehe$GEOID,]
+
+slope_ehe_combine = rbind(slopes_ehe_zinb_area_adj, slope_ehe_nb)
+slope_ehe_combine_cut = slope_ehe_combine %>% filter(abs(percentage_change) < 45)
+slope_ehe_combine_cut = slope_ehe_combine_cut %>%
   mutate(percentage_change_cat = case_when(
     percentage_change < -10 ~ "<-10%",
     percentage_change >=-10 & percentage_change<= -5 ~ "-10 - -5%",
@@ -276,7 +326,7 @@ slopes_ehe_cut = slopes_ehe_cut %>%
     percentage_change >0 & percentage_change<= 1 ~ "0-1%",
     percentage_change >1 & percentage_change <= 5 ~ "1-5%",
     percentage_change >5 & percentage_change <= 10 ~ "5-10%", 
-    TRUE ~ ">10%"
+    percentage_change > 10 ~ ">10%"
   )) %>%
   mutate(percentage_change_cat = factor(percentage_change_cat, 
                                         levels = c("<-10%","-10 - -5%","-5 - -1%",
@@ -289,7 +339,7 @@ slopes_ehe_cut = slopes_ehe_cut %>%
 ```{r}
 # Merge with geometry data
 county_boundaris_ehe_catalog <- merge(counties_geo,
-          slopes_ehe_cut %>% st_drop_geometry(),
+          slope_ehe_combine_cut %>% st_drop_geometry(),
           by.x="GEOID",
           by.y="GEOID",
           all.x = TRUE,
@@ -417,8 +467,33 @@ slopes_ece_poi_area_adj <- event_count_ece %>%
     })
   })
 
-slopes_ece_cut = slopes_ece_poi_area_adj %>% filter(abs(percentage_change) < 45)
-slopes_ece_cut = slopes_ece_cut %>%
+zeroinfl_ece = event_count_ece %>% group_by(GEOID, NAME, STATE_NAME) %>%
+  filter((first(event_count_outlier_rm) == 0) | (sum(event_count_outlier_rm == 0) > 5)) %>%
+  ungroup() 
+slopes_ece_zinb_area_adj <- zeroinfl_ece %>%
+  group_by(GEOID, NAME, STATE_NAME) %>%
+  do({
+    # Fit the Negative Binomial model
+    tryCatch({
+      model = zeroinfl(event_count_outlier_rm ~ year_numerical | 1 + 
+                            offset(log(avg_total_area_sq_mile)), data = .,
+                       dist = "negbin")
+      coef_model = coef(model)[2]
+      percentage_change = (exp(coef_model) - 1) * 100
+
+      data.frame(coef = coef_model, percentage_change)
+    }, error = function(e) {
+      # Return NA in case of an error
+      data.frame(coef = NA, percentage_change = NA)
+    })
+  })
+
+nb_ece = event_count_ece[!(event_count_ece$GEOID %in% zeroinfl_ece$GEOID),]
+slope_ece_nb = slopes_ece_poi_area_adj[slopes_ece_poi_area_adj$GEOID %in% nb_ece$GEOID,]
+
+slope_ece_combine = rbind(slopes_ece_zinb_area_adj, slope_ece_nb)
+slope_ece_combine_cut = slope_ece_combine %>% filter(abs(percentage_change) < 45)
+slope_ece_combine_cut = slope_ece_combine_cut %>%
   mutate(percentage_change_cat = case_when(
     percentage_change < -10 ~ "<-10%",
     percentage_change >=-10 & percentage_change<= -5 ~ "-10 - -5%",
@@ -441,7 +516,7 @@ slopes_ece_cut = slopes_ece_cut %>%
 ```{r}
 # Merge with geometry data
 county_boundaris_ece_catalog <- merge(counties_geo,
-          slopes_ece_cut %>% st_drop_geometry(),
+          slope_ece_combine_cut %>% st_drop_geometry(),
           by.x="GEOID",
           by.y="GEOID",
           all.x = TRUE,

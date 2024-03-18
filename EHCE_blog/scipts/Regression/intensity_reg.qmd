@@ -36,7 +36,7 @@ counties_geo <- readRDS(counties_file_path)[[1]]
 
 ```{r}
 dat_path <- file.path(source_dir,
-                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 st_crs(dat)$epsg
@@ -103,7 +103,7 @@ ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = slope), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "PuOr", limits = c(-2.2, 2.2)
+  scale_fill_distiller(palette = "PuOr", limits = c(-2.55, 2.55)
                        ) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
   labs(fill = "EHCE Intensity Coefficient") +
@@ -162,7 +162,7 @@ ggplot() +
   geom_sf(data = county_boundaris_ehe_catalog,
             aes(fill = slope),color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "PuOr", limit = c(-2.5, 2.5)) +
+  scale_fill_distiller(palette = "PuOr", limit = c(-2.55, 2.55)) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.5) +
   labs(fill = "EHE Intensity Coefficient") +
   theme_void() + 
@@ -219,7 +219,7 @@ ggplot() +
   geom_sf(data = county_boundaris_ece_catalog,
             aes(fill = slope), color = NA,
             lwd = .1) + 
-  scale_fill_distiller(palette = "PuOr", limit = c(-3.75, 3.75)) +
+  scale_fill_distiller(palette = "PuOr", limit = c(-2.55, 2.55)) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.5) +
   labs(fill = "ECE Intensity Coefficient") +
   theme_void() + 
