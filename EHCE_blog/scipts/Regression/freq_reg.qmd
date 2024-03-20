@@ -186,6 +186,10 @@ p_perc_change_all = ggplot() +
   theme_void() + 
   theme(legend.position = "bottom")
 p_perc_change_all
+#png("~/Desktop/ehe_ece_data_integration/post/output/perc_change_ehce.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_perc_change_all)
+#dev.off()
 ```
 
 
@@ -359,7 +363,7 @@ p_perc_change_ehe = ggplot() +
   theme(legend.position = "bottom")
 
 p_perc_change_ehe
-#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/perc_change_ehe.png",
+#png("~/Desktop/ehe_ece_data_integration/post/output/perc_change_ehe.png",
 #    height = 5, width = 7, res = 300, units = "in")
 #print(p_perc_change_ehe)
 #dev.off()
@@ -536,7 +540,7 @@ p_perc_change_ece = ggplot() +
   theme(legend.position = "bottom")
 
 p_perc_change_ece
-#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/perc_change_ece.png",
+#png("~/Desktop/ehe_ece_data_integration/post/output/perc_change_ece.png",
 #    height = 5, width = 7, res = 300, units = "in")
 #print(p_perc_change_ece)
 #dev.off()

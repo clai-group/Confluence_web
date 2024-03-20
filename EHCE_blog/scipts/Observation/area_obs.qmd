@@ -37,7 +37,7 @@ counties_geo <- readRDS(counties_file_path)[[1]]
 
 ```{r}
 dat_path <- file.path(source_dir,
-                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
@@ -70,7 +70,7 @@ county_boundaris_catalog_all <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # area all map
-ggplot() +
+p_ehce = ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = avg_impacted_to_total_ratio), color = NA,
             lwd = .1) + 
@@ -79,6 +79,8 @@ ggplot() +
   labs(fill = "EHCE Average Impacted Area Ratio (2008-2022)") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_ehce
+
 ```
 
 ### Extreme Heat Events
@@ -106,7 +108,7 @@ county_boundaris_ehe_catalog <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Area EHE map
-ggplot() +
+p_ehe = ggplot() +
   geom_sf(data = county_boundaris_ehe_catalog,
             aes(fill = avg_impacted_to_total_ratio),color = NA,
             lwd = .1) + 
@@ -115,6 +117,7 @@ ggplot() +
   labs(fill = "EHE Average Impacted Area Ratio (2008-2022)") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_ehe
 ```
 
 ### Extreme Cold Events
@@ -141,7 +144,7 @@ county_boundaris_ece_catalog <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Area ECE map
-ggplot() +
+p_ece = ggplot() +
   geom_sf(data = county_boundaris_ece_catalog,
             aes(fill = avg_impacted_to_total_ratio), color = NA,
             lwd = .1) + 
@@ -150,4 +153,10 @@ ggplot() +
   labs(fill = "ECE Average Impacted Area Ratio (2008-2022)") +
   theme_void() + 
   theme(legend.position = "bottom")
+
+p_ece
+#png("~/Desktop/ehe_ece_data_integration/post/output/area_obs_ece.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_ece)
+#dev.off()
 ```

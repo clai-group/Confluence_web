@@ -36,7 +36,7 @@ counties_geo <- readRDS(counties_file_path)[[1]]
 
 ```{r}
 dat_path <- file.path(source_dir,
-                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 st_crs(dat)$epsg
@@ -73,7 +73,7 @@ county_boundaris_catalog_all <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Intensity all map
-ggplot() +
+p_int_ehce = ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = mean_intensity), color = NA,
             lwd = .1) + 
@@ -81,7 +81,12 @@ ggplot() +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
   labs(fill = "EHCE Average Intensity (2008-2022)") +
   theme_void() + 
-  theme(legend.position = "bottom")       
+  theme(legend.position = "bottom")   
+p_int_ehce
+#png("~/Desktop/ehe_ece_data_integration/post/output/int_obs_ehce.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_int_ehce)
+#dev.off()
 ```
 
 ### Extreme Heat Events
@@ -108,7 +113,7 @@ county_boundaris_ehe_catalog <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Intensity EHE map
-ggplot() +
+p_int_ehe = ggplot() +
   geom_sf(data = county_boundaris_ehe_catalog,
             aes(fill = mean_intensity),color = NA,
             lwd = .1) + 
@@ -117,6 +122,8 @@ ggplot() +
   labs(fill = "EHE Average Intensity (2008-2022)") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_int_ehe
+
 ```
 
 ### Extreme Cold Events
@@ -143,7 +150,7 @@ county_boundaris_ece_catalog <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Intensity ECE map
-ggplot() +
+p_int_ece = ggplot() +
   geom_sf(data = county_boundaris_ece_catalog,
             aes(fill = mean_intensity), color = NA,
             lwd = .1) + 
@@ -152,4 +159,9 @@ ggplot() +
   labs(fill = "ECE Average Intensity (2008-2022)") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_int_ece
+#png("~/Desktop/ehe_ece_data_integration/post/output/int_obs_ece.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_int_ece)
+#dev.off()
 ```

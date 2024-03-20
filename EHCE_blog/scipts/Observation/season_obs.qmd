@@ -37,7 +37,7 @@ counties_geo <- readRDS(counties_file_path)[[1]]
 
 ```{r}
 dat_path <- file.path(source_dir,
-                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
@@ -84,7 +84,7 @@ county_boundaris_catalog_all <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # area all map
-ggplot() +
+p_duration = ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = avg_duration), color = NA,
             lwd = .1) + 
@@ -93,6 +93,8 @@ ggplot() +
   labs(fill = "EHE Average Duration (2008-2022)") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_duration
+
 ```
 
 ### First Event Analysis
@@ -118,15 +120,20 @@ ggplot() +
 
 ```{r}
 # area all map
-ggplot() +
+p_last = ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = avg_last_event_day), color = NA,
             lwd = .1) + 
-  scale_fill_viridis_c(option = "G", direction = -1) +
+  scale_fill_viridis_c(option = "B", direction = -1) +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
   labs(fill = "EHE Average Last Event Day (2008-2022)") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_last
+#png("~/Desktop/ehe_ece_data_integration/post/output/season_obs_avg_last.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_last)
+#dev.off()
 ```
 
 

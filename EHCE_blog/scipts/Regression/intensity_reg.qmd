@@ -99,7 +99,7 @@ county_boundaris_catalog_all <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Intensity all map
-ggplot() +
+p_int_ehce = ggplot() +
   geom_sf(data = county_boundaris_catalog_all,
             aes(fill = slope), color = NA,
             lwd = .1) + 
@@ -108,7 +108,8 @@ ggplot() +
   geom_sf(data = states_geo, fill = NA, color = "grey", size = 0.01, alpha = 0.2) +
   labs(fill = "EHCE Intensity Coefficient") +
   theme_void() + 
-  theme(legend.position = "bottom")       
+  theme(legend.position = "bottom")
+p_int_ehce
 ```
 
 ### Extreme Heat Events
@@ -158,7 +159,7 @@ county_boundaris_ehe_catalog <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Intensity EHE map
-ggplot() +
+p_int_ehe = ggplot() +
   geom_sf(data = county_boundaris_ehe_catalog,
             aes(fill = slope),color = NA,
             lwd = .1) + 
@@ -167,6 +168,8 @@ ggplot() +
   labs(fill = "EHE Intensity Coefficient") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_int_ehe
+
 ```
 
 ### Extreme Cold Events
@@ -215,7 +218,7 @@ county_boundaris_ece_catalog <- merge(counties_geo,
           all.y = TRUE,
           suffix = c("","_sp")) %>% st_as_sf() 
 # Intensity ECE map
-ggplot() +
+p_int_ece = ggplot() +
   geom_sf(data = county_boundaris_ece_catalog,
             aes(fill = slope), color = NA,
             lwd = .1) + 
@@ -224,4 +227,9 @@ ggplot() +
   labs(fill = "ECE Intensity Coefficient") +
   theme_void() + 
   theme(legend.position = "bottom")
+p_int_ece
+#png("~/Desktop/ehe_ece_data_integration/post/output/int_reg_ece.png",
+#    height = 5, width = 7, res = 300, units = "in")
+#print(p_int_ece)
+#dev.off()
 ```

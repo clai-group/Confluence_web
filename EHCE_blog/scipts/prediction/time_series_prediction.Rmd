@@ -1,0 +1,340 @@
+---
+title: "Covid-19 sevrity prediction"
+author: "Meet"
+date: "3/20/2023"
+output: html_document
+---
+
+```{r}
+#install.packages('prophet')
+library(prophet)
+#install.packages("Metrics")
+library(Metrics)
+library(readr)
+library(dplyr)
+library(forecast)
+library(xts)
+library(lubridate)
+library(astsa)
+library(ggplot2)
+library(gridExtra)
+```
+
+
+Importing data
+```{r}
+output <- read.csv("~/Desktop/frequency_EHE.csv")
+output$GEOID = as.character(output$GEOID)
+output$event_type = "EHE"
+output = output %>%
+  mutate(years =  as.Date(paste0(year_numerical, "-01-01")))
+output$value <- "observed"
+output$method <- NA
+output_grouped <- output %>% group_by(GEOID) %>% group_split()
+#output_Autauga = output%>% filter(NAME == "Autauga")
+#output_tx = output%>% filter(STATE_NAME == "Texas")
+```
+
+
+```{r}
+#' Use different methods to make the time-series forecasting
+#'
+#' @param method_name A string of the method name, including 'prophet', 'naive', 'simple_exp_smoothing' and 'holt'
+#' @param input_file A file with at least years, event_type and ARR columns
+#' @param outcome_str A string representing a specific event_type, 'hospitalization' or 'mortality'
+#' @param target_var A string representing the target prediction variable
+#' @param period A string representing the time-series
+#' @param test_selection_type A string of methods to select test year, including 'last', 'first' and 'random'. Default is 'last'
+#' @param num_test_years A number to define the number of test sample size
+#' @param num_month_pred A number defining how many years to forecast
+#' @return Returns a data frame with three columns, years, predicated values and event_type
+#' @examples
+#' input_file <- read_csv("../output.csv")
+#' pred_prophet_1 <- pred('prophet' ,input_file, 'hospitalization','event_count', 'years', 1, 2)
+
+
+
+
+pred2 <- function(method_name, input_file, outcome_str, 
+                  target_var, period, test_selection_type = 'last', 
+                  num_test_years = 5, num_month_pred, test_years = NULL){
+
+  df <- input_file %>% filter(event_type == outcome_str) %>% dplyr::select(period, target_var)
+  
+  if (missing(test_selection_type)) {
+    test_selection_type <- 'last'
+    num_test_years <- 5
+  }
+  
+  if (test_selection_type == 'first') {
+    test_indices <- 1:num_test_years
+  } else if (test_selection_type == 'last') {
+    test_indices <- (nrow(df) - num_test_years + 1):nrow(df)
+  } else if (test_selection_type == 'random') {
+    set.seed(123) 
+    test_indices <- sample(1:nrow(df), num_test_years)
+  } 
+  
+  # Split the data into training and testing based on selected indices
+  df_train <- df[-test_indices, ]
+  df_test <- df[test_indices, ]
+  
+  # Ensure training data is arranged by period
+  df_train <- df_train %>% arrange(df_train[[1]])
+  
+  # Placeholder for actual values - adjusted based on actual data availability
+  actual_values <- as.vector(tail(df[[2]], num_month_pred))
+  
+  # Prediction logic (similar for both methods, adjusted as needed)
+  pred_result <- NULL # Initialize
+  # Run one of the specific methods
+  if (method_name == 'prophet'){
+    colnames(df_train) <- c('ds', 'y')
+    # Make prediction (parameter:seasonality, changepoints)
+    m <- prophet(weekly.seasonality=FALSE, yearly.seasonality = TRUE)
+    # Add month seasonality
+    #m <- add_seasonality(m, name='monthly', period=30.5, fourier.order=5)
+    m <- fit.prophet(m, df_train)
+    future <- make_future_dataframe(m, periods = num_month_pred, freq = 'year')
+    forecast <- predict(m, future)
+    # print(plot(m, forecast))
+    # Format the output
+    pred_result <- forecast %>% dplyr::select("ds", "yhat", "yhat_lower", "yhat_upper")
+    colnames(pred_result) <- c('years','event_count','LB','UB')
+    pred_result$years<-pred_result$years
+    pred_result$event_type <- outcome_str
+    pred_result$value <- "predicted"
+    pred_result<-tail(pred_result, num_month_pred)
+    pred_result$RMSE <-rmse(unlist(actual_values), pred_result$event_count)
+    return (pred_result)
+  } else if (method_name == 'naive'){
+    
+    start_date<-df_train[1,1]
+    data_ts<-ts(df_train[,2],frequency = 1, start = start_date)
+    naive_mod <- naive(data_ts, h = num_month_pred)
+    df_naive_result = as.data.frame(naive_mod)
+    df_res <- data.frame(years = c(2023:2037),
+                         event_count =  df_naive_result$`Point Forecast`,
+                         LB = df_naive_result$`Lo 95`,
+                         UB = df_naive_result$`Hi 95`,
+                         event_type = outcome_str,
+                         value = 'predicted',
+                         RMSE = rmse(unlist(actual_values),unlist(df_naive_result$`Point Forecast`))
+                         )
+  }
+  else if (method_name == 'simple_exp_smoothing'){
+    start_date<-df_train[1,1]
+    data_ts<-ts(df_train[,2],frequency = 1, start = start_date)
+    se_model <- ses(data_ts, h = num_month_pred)
+    df_ses_result = as.data.frame(se_model)
+    df_res <- data.frame(years = c(2023:2037),
+                         event_count =  df_ses_result$`Point Forecast`,
+                         LB = df_ses_result$`Lo 95`,
+                         UB = df_ses_result$`Hi 95`,
+                         event_type = outcome_str,
+                         value = 'predicted',
+                         RMSE = rmse(unlist(actual_values),unlist(df_ses_result$`Point Forecast`))
+                         )
+  }
+  
+  else if (method_name == 'holt'){
+    start_date<-df_train[1,1]
+    data_ts<-ts(df_train[,2],frequency = 1, start = start_date)
+    holt_model <- holt(data_ts, h = num_month_pred)
+    df_holt_result = as.data.frame(holt_model)
+    df_res <- data.frame(years = c(2023:2037),
+                         event_count =  df_holt_result$`Point Forecast`,
+                         LB = df_holt_result$`Lo 95`,
+                         UB = df_holt_result$`Hi 95`,
+                         event_type = outcome_str,
+                         value = 'predicted',
+                         RMSE = rmse(unlist(actual_values),unlist(df_holt_result$`Point Forecast`))
+                         )
+  }
+  
+  else if (method_name == 'auto.Arima'){
+    start_date<-df_train[1,1]
+    data_ts<-as.data.frame(log(ts(df_train[,2],frequency = 1, start = start_date)))
+    model<-auto.arima(data_ts)
+    fit<-forecast(model, h = num_month_pred, level = c(95,95))
+    forecasted_values<-exp(fit$mean)
+    forcasted_UB <- exp(fit$upper[,2])
+    forcasted_LB <- exp(fit$lower[,2])
+    df_res <- data.frame(years = c(2023:2037),
+                         event_count = as.vector(forecasted_values),
+                         LB = as.vector(forcasted_LB),
+                         UB = as.vector(forcasted_UB),
+                         event_type = outcome_str,
+                         value = 'predicted',
+                         RMSE = rmse(unlist(actual_values),unlist(forecasted_values))
+                         )
+  }
+    else if (method_name == 'TBATS'){
+    start_date<-df_train[1,1]
+    data_ts<-ts(df_train[,2],frequency = 1, start = start_date)
+    model<-tbats(data_ts, use.arma.errors = TRUE)
+    fit<-forecast(model, h= num_month_pred, level = c(95,95))
+  
+    forecasted_values<-fit$mean
+    forcasted_UB <- fit$upper[,2]
+    forcasted_LB<-fit$lower[,2]
+    df_res <- data.frame(years = c(2023:2037),
+                         event_count = as.vector(forecasted_values),
+                         LB = as.vector(forcasted_LB),
+                         UB = as.vector(forcasted_UB),
+                         event_type = outcome_str,
+                         value = 'predicted',
+                         RMSE = rmse(unlist(actual_values),unlist(forecasted_values))
+                         )
+    
+    }
+  else if (method_name == 'Arima'){
+    start_date<-df_train[1,1]
+    data_ts<-as.data.frame(log(ts(df_train[,2],frequency = 1, start = start_date)))
+    #tune the function accordingly.
+    model<-arima(data_ts, order = c(1,0,4), seasonal = list(order = c(1,0,3), period = 12))
+    fit<-forecast(model, h = num_month_pred, level = c(95,95))
+    forecasted_values<-exp(fit$mean)
+    forcasted_UB <- exp(fit$upper[,2])
+    forcasted_LB <- exp(fit$lower[,2])
+    df_res <- data.frame(years = c(2023:2037),
+                         event_count = as.vector(forecasted_values),
+                         LB = as.vector(forcasted_LB),
+                         UB = as.vector(forcasted_UB),
+                         event_type = outcome_str,
+                         value = 'predicted',
+                         RMSE = rmse(unlist(actual_values),unlist(forecasted_values))
+                         )
+  }
+  
+    else if (method_name == 'SARIMA'){ 
+    start_date<-df_train[1,1]
+    data_ts<-as.data.frame(log(ts(df_train[,2],frequency = 1, start = start_date)))
+    model<-sarima.for(log(ts(df_train[,2],frequency = 1, start = start_date)), num_month_pred, 1,0,4,1,0,3 , 12)
+    forecasted_values<-exp(model$pred)
+    error<- model$se*1.96
+    forcasted_UB <- exp(error + model$pred)
+    forcasted_LB <- exp(model$pred - error)
+    df_res <- data.frame(years = c(2023:2037),
+                         event_count = as.vector(forecasted_values),
+                         LB = as.vector(forcasted_LB),
+                         UB = as.vector(forcasted_UB),
+                         event_type = outcome_str,
+                         value = 'predicted',
+                         RMSE = rmse(unlist(actual_values),unlist(forecasted_values))
+                         )
+    }
+  }
+```
+
+
+```{r}
+method_lst <- list('prophet','naive', 'simple_exp_smoothing','holt', 'auto.Arima', 'TBATS','Arima', 'SARIMA')
+# ### shell data frame
+results_df <- data.frame(method = character(),
+                         GEOID = character(),
+                         years = as.Date(character(), format = "%Y-%m-%d"),
+                         event_count = numeric(),
+                         LB = numeric(),
+                         UB = numeric(),
+                         event_type = character(),
+                         RMSE = numeric(),
+                         value = character(),
+                         stringsAsFactors = FALSE)
+
+#output_tx_grouped <- output_tx %>% group_by(NAME) %>% group_split()
+for (county_data in output_grouped) {
+  county_id <- unique(county_data$GEOID)[1] 
+  
+  for (method in method_lst) {
+    tryCatch({
+      pred_result <- pred2(method_name = method,
+                           input_file = county_data, 
+                           outcome_str = "EHE",
+                           target_var = "event_count",
+                           period = "years",
+                           num_test_years = 5, 
+                           test_selection_type = 'first',
+                           num_month_pred = 15)
+
+      temp_df <- data.frame(method = method, 
+                            GEOID = county_id,
+                            years = c(2023:2037), 
+                            event_count = pred_result$event_count, 
+                            LB = pred_result$LB, 
+                            UB = pred_result$UB, 
+                            event_type = pred_result$event_type, 
+                            value = pred_result$value, 
+                            RMSE = pred_result$RMSE, 
+                            stringsAsFactors = FALSE)
+      
+      # Append to the main results data frame
+      results_df <- rbind(results_df, temp_df)
+    }, error = function(e) {
+      message(paste("Error in processing", county_id, "with method", method, ":", e$message))
+    })
+  }
+}
+```
+
+
+```{r}
+write.csv(results_df, "~/Desktop/ehe_ece_data_integration/post/prediction/frequency_pred_EHE.csv",row.names = F)
+results_df_ehe = results_df
+results_df_ehe_2035 = results_df_ehe %>%
+  filter(years == 2035) 
+
+best_models_df_2035 <- results_df_ehe_2023 %>%
+  group_by(county) %>%
+  summarize(best_RMSE = min(RMSE)) %>%
+  inner_join(results_df_ehe_2023, by = c("county", "best_RMSE" = "RMSE"))
+```
+
+
+```{r}
+triangle_datah3<-data.frame(
+  x=c(results_tx$years[nrow(results_tx)-3],
+      results_tx$years[(nrow(results_tx)-2):nrow(results_tx)], 
+      results_tx$years[nrow(results_tx):(nrow(results_tx)-2)]),
+  y =c(results_tx$event_count[nrow(results_tx)-3],
+       results_tx$UB[(nrow(results_tx)-2):nrow(results_tx)], 
+       results_tx$LB[nrow(results_tx):(nrow(results_tx)-2)])
+  )
+
+ggplot(results_tx, aes(x = as.Date(years), y = event_count)) + 
+  geom_polygon(data = triangle_datah3, aes(x = as.Date(x), y = y), fill = "gray",
+               alpha = 0.7, na.rm = TRUE) +
+  geom_line(color = "blue") +
+  geom_point(aes(color = value), size = 3) + 
+  geom_text(data = subset(results_tx, value == "predicted" ), 
+            aes(x =as.Date(years), 
+                y=event_count, 
+                label=round(event_count, digits=3)), 
+            vjust= -1.0, size=2)+
+  geom_point(data = subset(output_tx, event_type == "EHE"), 
+             aes(x =as.Date(years), 
+                 y=event_count, 
+                 color = "previous predicted"), 
+             fill = "green", shape = 0, size = 2)+
+  geom_text(data = subset(output_tx, event_type == "EHE"), 
+            aes(x =as.Date(years), y=event_count, label=round(event_count, digits=3)), 
+            vjust= -1.0, size=2)+
+  scale_color_manual(values = c("blue","green","red")) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year")+
+  labs(title = "3 year prediction (Texas)", x = "years", y = "Frequency") + 
+  theme_bw()+ theme(axis.text.x = element_text(size = 8))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

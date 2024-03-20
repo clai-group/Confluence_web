@@ -43,7 +43,7 @@ counties_geo <- readRDS(counties_file_path)[[1]]
 
 ```{r}
 dat_path <- file.path(source_dir,
-                      "Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
 file_size <- file.info(dat_path)$size
 dat <- readRDS(dat_path)[[1]]
 ```
@@ -85,7 +85,7 @@ p_count_all_map = ggplot() +
   theme(legend.position = "bottom")
 
 p_count_all_map
-#png("~/Desktop/ehe_ece_data_integration/Frequency_maps/count_all_per_area.png",
+#png("~/Desktop/ehe_ece_data_integration/post/output/frq_obs_ehce.png",
 #    height = 5, width = 7, res = 300, units = "in")
 #print(p_count_all_map)
 #dev.off()
@@ -123,7 +123,7 @@ p_ehe_count_map = ggplot() +
   theme(legend.position = "bottom")
 
 p_ehe_count_map
-#png("~/Desktop/count_ehe_per_area.png",
+#png("~/Desktop/ehe_ece_data_integration/post/output/frq_obs_ehe.png",
 #    height = 5, width = 7, res = 300, units = "in")
 #print(p_ehe_count_map)
 #dev.off()
@@ -161,7 +161,7 @@ p_ece_count_map = ggplot() +
   theme(legend.position = "bottom")
 
 p_ece_count_map
-#png("~/Desktop/count_ece_per_area.png",
+#png("~/Desktop/ehe_ece_data_integration/post/output/frq_obs_ece.png",
 #    height = 5, width = 7, res = 300, units = "in")
 #print(p_ece_count_map)
 #dev.off()
