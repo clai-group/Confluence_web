@@ -2,11 +2,8 @@
   {
     "listing": "/index.html",
     "items": [
-      "/posts/Frequency/index.html",
-      "/posts/Intensity/index.html",
-      "/posts/Area/index.html",
-      "/posts/Season/index.html",
-      "/posts/prediction/index.html"
+      "/posts/observation/index.html",
+      "/posts/trends/index.html"
     ]
   }
 ]

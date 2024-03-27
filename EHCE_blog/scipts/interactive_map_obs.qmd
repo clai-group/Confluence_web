@@ -129,25 +129,25 @@ county_summary = lapply(seq_len(nrow(county_boundaries_catalog_all_trans)), func
   htmltools::HTML(generate_table_html(county))
 })
 
- leaflet() %>%
-  addProviderTiles(providers$OpenStreetMap) %>%
-  addPolygons(data = state_boundaris_catalog,
-              fillColor = "#FFFFFF",
-              weight = 2,
-              color = "#000000", 
-              fillOpacity = 0.7,
-              group = "States") %>%
-  addPolygons(data = county_boundaries_catalog_all_trans,
-              fillColor = "#FFFFFF", 
-              weight = 1,
-              color = "#888", 
-              fillOpacity = 0.7,
-              popup = county_summary,
-              group = "Counties") %>%
-  addLayersControl(
-    overlayGroups = c("States", "Counties"),
-    options = layersControlOptions(collapsed = FALSE)
-  )
+leaflet() %>%
+addProviderTiles(providers$OpenStreetMap) %>%
+addPolygons(data = state_boundaris_catalog,
+            fillColor = "#FFFFFF",
+            weight = 2,
+            color = "#000000", 
+            fillOpacity = 0.7,
+            group = "States") %>%
+addPolygons(data = county_boundaries_catalog_all_trans,
+            fillColor = "#FFFFFF", 
+            weight = 1,
+            color = "#888", 
+            fillOpacity = 0.7,
+            popup = county_summary,
+            group = "Counties") %>%
+addLayersControl(
+  overlayGroups = c("States", "Counties"),
+  options = layersControlOptions(collapsed = FALSE)
+)
 
 
 ```

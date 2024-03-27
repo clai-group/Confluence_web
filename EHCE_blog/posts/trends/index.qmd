@@ -1,0 +1,161 @@
+---
+title: "Interactive map --- Trends"
+author: "Jingya Cheng"
+date: "2024-01-03"
+categories: [code, analysis, trend]
+---
+
+# Extreme Heat/Cold Events Frequency Trend Analysis
+
+```{r, include=FALSE}
+library(readr)
+library(viridis)
+library(tidyverse)
+library(sf)
+library(gridExtra)
+library(RColorBrewer)
+library(pscl)
+library(reshape2)
+library(data.table)
+library(broom)
+library(DescTools)
+library(MASS)
+library(ggridges)
+library(purrr)
+library(leaflet)
+library(tidyr)
+library(htmltools)
+```
+```{r, include=FALSE}
+### Loading the base spatail data set including Counties and States boundaires
+source_dir <- "./data/"
+states_file_path <- file.path(source_dir,
+                              "us49_states_geo_tigris.rds")
+states_geo <- readRDS(states_file_path)[[1]]
+counties_file_path <- file.path(source_dir,
+                                "us49_counties_geo_tigris.rds")
+counties_geo <- readRDS(counties_file_path)[[1]]
+#plot(counties_geo[1])
+```
+
+
+```{r, include=FALSE}
+### Loading the aggregate extreme events data set
+dat_path <- file.path(source_dir,
+                      "S190_T002_Counties_compiled_admin_geo_ehe_ece_sf_2008_2022.rds")
+file_size <- file.info(dat_path)$size
+dat <- readRDS(dat_path)[[1]]
+```
+
+
+```{r, include=FALSE}
+### Data processing
+#### Filter out Extreme Cold events from May to September each year
+dat_table = dat %>%  st_drop_geometry()
+dat_table = dat_table %>% 
+  filter(!(event_type == "Extreme Cold Event" & month_numerical %in% 5:9))
+```
+
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+freq = read.csv("~/Desktop/ehe_ece_data_integration/post/output/output_dat/freq_slope.csv")
+int = read.csv("~/Desktop/ehe_ece_data_integration/post/output/output_dat/int_slope.csv")
+area = read.csv("~/Desktop/ehe_ece_data_integration/post/output/output_dat/area_slope.csv")
+duration = read.csv("~/Desktop/ehe_ece_data_integration/post/output/output_dat/duration_slope.csv")
+
+colnames(freq)[5] = "freq"
+colnames(int)[4] = "int"
+colnames(area)[4] = "area"
+colnames(duration)[4] = "duration"
+
+dat1 = merge(freq[,c(1, 2, 3, 5, 9)], int[,c(1:4, 7)])
+dat2 = merge(dat1, area[,c(1:4, 7)])
+
+dat_summary = dat2 %>%
+  pivot_wider(
+    names_from = event_type,
+    values_from = c(freq, int, area),
+    names_sep = "_"
+  )
+
+summary_trend_map_dat = merge(dat_summary, duration[, c(1, 2, 4)])
+summary_trend_map_dat$GEOID <- as.character(summary_trend_map_dat$GEOID)
+summary_trend_map_dat$GEOID <- ifelse(nchar(summary_trend_map_dat$GEOID) == 4, 
+                                      paste0("0", summary_trend_map_dat$GEOID), 
+                                      summary_trend_map_dat$GEOID)
+```
+
+
+
+```{r, include=FALSE}
+# Merge with geometry data
+county_boundaries_catalog_all <- merge(counties_geo,
+          summary_trend_map_dat %>% st_drop_geometry(),
+          by.x="GEOID",
+          by.y="GEOID",
+          all.x = TRUE,
+          all.y = TRUE,
+          suffix = c("","_sp")) %>% st_as_sf() 
+
+county_boundaries_catalog_all_trans <- st_transform(county_boundaries_catalog_all, crs = 4326)
+state_boundaris_catalog <- st_transform(states_geo, crs = 4326)
+```
+
+```{r, echo=FALSE}
+generate_table_html = function(county) {
+  table_html <- paste0(
+    "<table border='1' style='border-collapse: collapse;'>",
+      "<tr><th>GEOID</th><td>", county$GEOID, "</td></tr>",
+    "<tr><th>County</th><td>", county$NAME, "</td></tr>",
+    "<tr><th>State</th><td>", county$STATE_NAME, "</td></tr>",
+    "<tr><th>Frequency Percentage Change EHE</th><td>", county$freq_ECE, "</td></tr>",
+    "<tr><th>Frequency Percentage Change ECE</th><td>", county$freq_ECE, "</td></tr>",
+    "<tr><th>Intensity Esrimates EHE</th><td>", county$int_EHE, "</td></tr>",
+    "<tr><th>Intensity Esrimates ECE</th><td>", county$int_ECE, "</td></tr>",
+    "<tr><th>Impacted Area Ratio Esrimates EHE (%)</th><td>", county$area_EHE, "</td></tr>",
+    "<tr><th>Impacted Area Ratio Esrimates ECE(%)</th><td>", county$area_ECE, "</td></tr>",
+    "<tr><th>Duration EHE (days)</th><td>", county$duration, "</td></tr>",
+    "</table>"
+  )
+  table_html
+}
+
+county_summary = lapply(seq_len(nrow(county_boundaries_catalog_all_trans)), function(i) {
+  county <- county_boundaries_catalog_all_trans[i, ]
+  htmltools::HTML(generate_table_html(county))
+})
+
+
+leaflet() %>%
+addProviderTiles(providers$OpenStreetMap) %>%
+addPolygons(data = state_boundaris_catalog,
+            fillColor = "#FFFFFF",
+            weight = 2,
+            color = "#000000", 
+            fillOpacity = 0.7,
+            group = "States") %>%
+addPolygons(data = county_boundaries_catalog_all_trans,
+            fillColor = "#FFFFFF", 
+            weight = 1,
+            color = "#888", 
+            fillOpacity = 0.7,
+            popup = county_summary,
+            group = "Counties") %>%
+addLayersControl(
+  overlayGroups = c("States", "Counties"),
+  options = layersControlOptions(collapsed = FALSE)
+)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
